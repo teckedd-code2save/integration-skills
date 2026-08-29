@@ -131,6 +131,27 @@ function installDependencies(target, dependencies) {
   return `${command} ${action} ${dependencies.join(" ")}`;
 }
 
+function clerkReactCompatibility(target, dependencies) {
+  if (!dependencies.includes("@clerk/nextjs")) return [];
+  const packageJson = readJson(join(target, "package.json"));
+  const minimumPatch = new Map([[0, 3], [1, 4], [2, 3]]);
+  const adjustments = [];
+
+  for (const name of ["react", "react-dom"]) {
+    const range = packageJson.dependencies?.[name] ?? packageJson.devDependencies?.[name];
+    const match = String(range ?? "").match(/19\.(\d+)\.(\d+)/);
+    if (!match) continue;
+    const minor = Number(match[1]);
+    const patch = Number(match[2]);
+    const requiredPatch = minimumPatch.get(minor);
+    if (requiredPatch !== undefined && patch < requiredPatch) {
+      adjustments.push(`${name}@~19.${minor}.${requiredPatch}`);
+    }
+  }
+
+  return adjustments;
+}
+
 function scaffoldRecipe(recipe, target, context, options) {
   const created = [];
   const unchanged = [];
@@ -211,7 +232,13 @@ const context = inspectNextProject(options.target);
 const results = selected.map((recipe) =>
   scaffoldRecipe(recipe, options.target, context, options),
 );
-const dependencies = [...new Set(results.flatMap((result) => result.dependencies))];
+const recipeDependencies = results.flatMap((result) => result.dependencies);
+const dependencies = [
+  ...new Set([
+    ...recipeDependencies,
+    ...clerkReactCompatibility(options.target, recipeDependencies),
+  ]),
+];
 const installed = options.install && !options.dryRun
   ? installDependencies(options.target, dependencies)
   : null;
@@ -220,6 +247,7 @@ const output = {
   target: options.target,
   framework: `nextjs-${context.nextMajor}-app-router`,
   dryRun: options.dryRun,
+  dependencies,
   installed,
   results,
 };

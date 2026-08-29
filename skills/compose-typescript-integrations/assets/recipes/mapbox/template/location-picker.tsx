@@ -64,16 +64,19 @@ export function MapboxLocationPicker({
     if (!feature || feature.geometry.type !== "Point") return;
     const [longitude, latitude] = feature.geometry.coordinates;
     if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) return;
-    const properties = feature.properties as Record<string, unknown>;
-    const name = String(properties.name ?? properties.full_address ?? "Selected place");
-    const address = properties.full_address ? String(properties.full_address) : undefined;
-    const mapboxId = properties.mapbox_id ? String(properties.mapbox_id) : undefined;
+    const { name, full_address: fullAddress, mapbox_id: mapboxId } = feature.properties;
     markerRef.current?.remove();
     markerRef.current = new mapboxgl.Marker()
       .setLngLat([longitude, latitude])
       .addTo(mapRef.current!);
     mapRef.current?.flyTo({ center: [longitude, latitude], zoom: 15 });
-    onSelect({ mapboxId, name, address, longitude, latitude });
+    onSelect({
+      mapboxId: mapboxId || undefined,
+      name: name || fullAddress || "Selected place",
+      address: fullAddress || undefined,
+      longitude,
+      latitude,
+    });
   };
 
   return (

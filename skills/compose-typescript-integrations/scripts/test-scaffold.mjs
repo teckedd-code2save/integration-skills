@@ -2,13 +2,12 @@
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const script = resolve(dirname(fileURLToPath(import.meta.url)), "scaffold.mjs");
-const fixture = mkdtempSync(join(tmpdir(), "integration-kit-"));
+const fixture = mkdtempSync(join(resolve(), ".integration-kit-"));
 mkdirSync(join(fixture, "src", "app"), { recursive: true });
 writeFileSync(
   join(fixture, "package.json"),
@@ -47,23 +46,73 @@ assert.ok(second.results.every((result) => result.unchanged.length > 0));
 assert.match(env, /^NEXT_PUBLIC_CLERK_SIGN_IN_URL=\/sign-in$/m);
 assert.match(env, /^NEXT_PUBLIC_CLERK_SIGN_UP_URL=\/sign-up$/m);
 
-writeFileSync(join(fixture, "src", "integrations", "paystack", "client.ts"), "user-owned\n");
+const paystackClientPath = join(fixture, "src", "integrations", "paystack", "client.ts");
+const generatedPaystackClient = readFileSync(paystackClientPath, "utf8");
+writeFileSync(paystackClientPath, "user-owned\n");
 const collision = run("add", "paystack", "--target", fixture);
 assert.deepEqual(collision.results[0].skipped, ["src/integrations/paystack/client.ts"]);
 assert.equal(
   readFileSync(join(fixture, "src", "integrations", "paystack", "client.ts"), "utf8"),
   "user-owned\n",
 );
+writeFileSync(paystackClientPath, generatedPaystackClient);
 
-const fixture15 = mkdtempSync(join(tmpdir(), "integration-kit-next15-"));
+const fixture15 = mkdtempSync(join(resolve(), ".integration-kit-next15-"));
 mkdirSync(join(fixture15, "app"), { recursive: true });
 writeFileSync(
   join(fixture15, "package.json"),
-  JSON.stringify({ private: true, dependencies: { next: "^15.5.0" } }, null, 2),
+  JSON.stringify(
+    {
+      private: true,
+      dependencies: { next: "^15.5.0", react: "19.1.0", "react-dom": "19.1.0" },
+    },
+    null,
+    2,
+  ),
 );
 const next15 = run("add", "clerk", "--target", fixture15);
 assert.equal(next15.framework, "nextjs-15-app-router");
 assert.ok(existsSync(join(fixture15, "middleware.ts")));
 assert.ok(!existsSync(join(fixture15, "proxy.ts")));
+const next15Install = run(
+  "add",
+  "clerk",
+  "--target",
+  fixture15,
+  "--install",
+  "--dry-run",
+);
+assert.ok(next15Install.dependencies.includes("react@~19.1.4"));
+assert.ok(next15Install.dependencies.includes("react-dom@~19.1.4"));
 
-console.log(`scaffolder tests passed: ${fixture}`);
+writeFileSync(
+  join(fixture, "tsconfig.json"),
+  JSON.stringify(
+    {
+      compilerOptions: {
+        target: "ES2022",
+        lib: ["dom", "dom.iterable", "es2022"],
+        strict: true,
+        noEmit: true,
+        skipLibCheck: true,
+        esModuleInterop: true,
+        module: "esnext",
+        moduleResolution: "bundler",
+        resolveJsonModule: true,
+        isolatedModules: true,
+        jsx: "react-jsx",
+        types: ["node"],
+      },
+      include: ["src/**/*.ts", "src/**/*.tsx"],
+    },
+    null,
+    2,
+  ),
+);
+execFileSync(resolve("node_modules", ".bin", "tsc"), ["--project", join(fixture, "tsconfig.json")], {
+  stdio: "inherit",
+});
+
+rmSync(fixture, { recursive: true, force: true });
+rmSync(fixture15, { recursive: true, force: true });
+console.log("scaffolder and starter typecheck tests passed");
