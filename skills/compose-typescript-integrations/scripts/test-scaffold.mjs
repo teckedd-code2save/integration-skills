@@ -46,6 +46,45 @@ assert.ok(second.results.every((result) => result.unchanged.length > 0));
 assert.match(env, /^NEXT_PUBLIC_CLERK_SIGN_IN_URL=\/sign-in$/m);
 assert.match(env, /^NEXT_PUBLIC_CLERK_SIGN_UP_URL=\/sign-up$/m);
 
+const composed = run(
+  "compose",
+  "clerk",
+  "paystack",
+  "r2",
+  "mapbox",
+  "--target",
+  fixture,
+);
+assert.equal(composed.composition.config.status, "created");
+assert.ok(composed.composition.files.every((file) => file.status === "created"));
+assert.deepEqual(readFileSync(join(fixture, "integrations.config.json"), "utf8"), `${JSON.stringify({
+  managedBy: "compose-typescript-integrations",
+  version: 1,
+  integrations: ["clerk", "paystack", "r2", "mapbox"],
+}, null, 2)}\n`);
+assert.match(
+  readFileSync(join(fixture, "src", "integrations", "server.ts"), "utf8"),
+  /createPaymentInitializeRoute/,
+);
+assert.match(
+  readFileSync(join(fixture, "src", "integrations", "client", "location.ts"), "utf8"),
+  /LocationPicker/,
+);
+const replay = run("compose", "--target", fixture);
+assert.equal(replay.composition.config.status, "unchanged");
+assert.ok(replay.composition.files.every((file) => file.status === "unchanged"));
+
+const serverFacadePath = join(fixture, "src", "integrations", "server.ts");
+const generatedServerFacade = readFileSync(serverFacadePath, "utf8");
+writeFileSync(serverFacadePath, "user-owned\n");
+const compositionCollision = run("compose", "--target", fixture);
+assert.deepEqual(
+  compositionCollision.composition.files.filter((file) => file.status === "skipped"),
+  [{ path: "src/integrations/server.ts", status: "skipped" }],
+);
+assert.equal(readFileSync(serverFacadePath, "utf8"), "user-owned\n");
+writeFileSync(serverFacadePath, generatedServerFacade);
+
 const paystackClientPath = join(fixture, "src", "integrations", "paystack", "client.ts");
 const generatedPaystackClient = readFileSync(paystackClientPath, "utf8");
 writeFileSync(paystackClientPath, "user-owned\n");
@@ -70,13 +109,13 @@ writeFileSync(
     2,
   ),
 );
-const next15 = run("add", "clerk", "--target", fixture15);
+const next15 = run("compose", "clerk", "--target", fixture15);
 assert.equal(next15.framework, "nextjs-15-app-router");
 assert.ok(existsSync(join(fixture15, "middleware.ts")));
 assert.ok(!existsSync(join(fixture15, "proxy.ts")));
+assert.ok(existsSync(join(fixture15, "integrations", "provider.tsx")));
 const next15Install = run(
-  "add",
-  "clerk",
+  "compose",
   "--target",
   fixture15,
   "--install",

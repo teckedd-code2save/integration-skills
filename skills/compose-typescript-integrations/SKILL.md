@@ -20,13 +20,27 @@ Add the requested capability to the existing application by composing the provid
 
 ## Use the executable starters
 
-For a Next.js App Router project, run the scaffolder from this skill directory. In a standard project installation the command is:
+For a Next.js App Router project, prefer the composition command. It records the selected providers in `integrations.config.json`, installs their starters, and generates stable application-owned facades:
+
+```bash
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose <clerk|paystack|r2|mapbox>... --target . --install
+```
+
+Subsequent agents can reproduce or repair the declared composition without restating providers:
+
+```bash
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose --target . --install
+```
+
+The composition generates `integrations/capabilities.ts`, `integrations/server.ts`, `integrations/provider.tsx`, and capability-scoped client facades under `integrations/client/`. Use `client/auth`, `client/location`, and `client/storage` separately so browser-only SDKs are not pulled into unrelated rendering paths. Prefer these stable facades in application code; use provider modules directly only when the facade does not expose a required advanced operation. Wrap the root layout with `AppIntegrationsProvider` when the generated provider is used.
+
+Use the lower-level `add` command when only provider modules are wanted without a manifest or shared facade:
 
 ```bash
 node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs add <clerk|paystack|r2|mapbox> --target . --install
 ```
 
-Use `list` to inspect available starters and `--dry-run` to preview. The script detects `src/app` versus `app`, uses `proxy.ts` for Next.js 16+ and `middleware.ts` for older supported versions, adds only missing `.env.example` keys, and preserves existing files. Do not use `--force` merely to avoid merging; inspect skipped files and integrate the relevant code deliberately.
+Use `list` to inspect available starters and `--dry-run` to preview. The script detects `src/app` versus `app`, uses `proxy.ts` for Next.js 16+ and `middleware.ts` for older supported versions, adds only missing `.env.example` keys, and preserves existing files. Composition facades carry a generated-file marker and can be safely refreshed; a same-named user-owned file is skipped. Do not use `--force` merely to avoid merging; inspect skipped files and integrate the relevant code deliberately.
 
 The starters provide working provider boundaries, not product authorization or business rules. Connect their explicit callbacks to the application's authenticated user, order, ownership, and idempotency layers. For non-Next.js TypeScript projects, adapt the provider modules from `assets/recipes/<provider>/template` instead of running an incompatible scaffold.
 

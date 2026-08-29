@@ -31,12 +31,29 @@ Then ask normally:
 Use $compose-typescript-integrations to add Clerk Google and phone authentication to this application.
 ```
 
-The agent can scaffold one or several starters with:
+The recommended command composes one or several integrations and records the choice for every later agent:
 
 ```bash
 node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs list
-node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs add clerk --target . --install
-node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs add paystack r2 mapbox --target . --install
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose clerk paystack r2 mapbox --target . --install
+```
+
+That creates `integrations.config.json` plus consistent application imports:
+
+```ts
+import {
+  createPaymentInitializeRoute,
+  createStorageUploadRoute,
+} from "@/integrations/server";
+import { AuthControls } from "@/integrations/client/auth";
+import { LocationPicker } from "@/integrations/client/location";
+import { AppIntegrationsProvider } from "@/integrations/provider";
+```
+
+Any agent can later reapply or repair the declared set with:
+
+```bash
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose --target . --install
 ```
 
 Existing files are preserved and reported for deliberate merging. `--dry-run` previews changes; `--force` is available only when replacement is intentional.

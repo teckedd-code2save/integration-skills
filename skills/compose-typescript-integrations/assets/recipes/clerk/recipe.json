@@ -19,7 +19,7 @@
     { "source": "private-route.ts", "destination": "{{src}}/app/api/private/route.ts" }
   ],
   "manualSteps": [
-    "Wrap the existing root layout children with AppAuthProvider; do not replace the layout.",
+    "Wrap the existing root layout children with AppIntegrationsProvider when using compose, or AppAuthProvider when using add; do not replace the layout.",
     "Adjust the protected route matcher to the product's real private routes.",
     "Run npx clerk init or configure Google and phone sign-in in the Clerk Dashboard."
   ]
