@@ -48,6 +48,36 @@ Do not pass a key directly in a recorded command, even when the MCP README demon
 
 ## Implement the payment boundary
 
+For a Next.js App Router project, scaffold the server modules:
+
+```bash
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs add paystack --target .
+```
+
+The starter has no runtime dependency beyond Node and the web `fetch` API. It provides `createPaystackInitializeRoute` and `createPaystackWebhookRoute`. Compose an initialize route with a trusted order lookup:
+
+```ts
+import { createPaystackInitializeRoute } from "@/integrations/paystack/next-routes";
+import { createPaymentReference, toPaystackSubunit } from "@/integrations/paystack/money";
+
+export const POST = createPaystackInitializeRoute({
+  async resolvePayment(request) {
+    const user = await requireCurrentUser(request);
+    const order = await requirePayableOrder(request, user.id);
+    return {
+      email: user.email,
+      amount: toPaystackSubunit(order.total),
+      reference: order.paymentReference ?? createPaymentReference(order.id),
+      currency: "GHS",
+      channels: ["card", "mobile_money"],
+      metadata: { orderId: order.id },
+    };
+  },
+});
+```
+
+`requireCurrentUser` and `requirePayableOrder` represent application-owned authorization and persistence; implement them using the existing domain rather than copying browser values. Build the webhook route with the provided factory and route every `charge.success` event through one durable, idempotent completion service.
+
 Keep all authoritative payment decisions on the server:
 
 1. Load the order or invoice by its internal identifier.

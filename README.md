@@ -2,7 +2,7 @@
 
 A small, agent-first collection for adding maintained third-party capabilities to existing TypeScript applications.
 
-The project does not replace provider SDKs or freeze vendor snippets. Each recipe teaches an agent how to discover the target project, use the provider's official CLI or skill, guide account and key setup, refine generated code, and verify the finished integration.
+It combines provider SDKs and CLIs with executable TypeScript starters. The included scaffolder safely copies maintained adapters, route factories, components, and environment placeholders into an existing Next.js App Router project without overwriting user files by default.
 
 ## Point an agent at it
 
@@ -31,11 +31,21 @@ Then ask normally:
 Use $compose-typescript-integrations to add Clerk Google and phone authentication to this application.
 ```
 
+The agent can scaffold one or several starters with:
+
+```bash
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs list
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs add clerk --target . --install
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs add paystack r2 mapbox --target . --install
+```
+
+Existing files are preserved and reported for deliberate merging. `--dry-run` previews changes; `--force` is available only when replacement is intentional.
+
 ## Available recipes
 
 ### Clerk authentication
 
-The first recipe composes Clerk's official CLI and skills. It covers project inspection, account linking, requested login-method configuration, environment keys, code refinement, and verification.
+The Clerk recipe includes version-aware Next.js middleware/proxy, a provider wrapper, sign-in and sign-up pages, account controls, and a protected API example. It composes Clerk's CLI for account linking and Google/phone configuration.
 
 Example request:
 
@@ -43,7 +53,7 @@ Example request:
 
 ### Paystack payments
 
-The Paystack recipe composes its official TypeScript SDK, OpenAPI specification, CLI, and test-only MCP server. It supports hosted checkout, Popup V2, Ghana mobile money, verified callbacks, signed webhooks, idempotency, and test-to-live guidance.
+The Paystack recipe includes a server client, precise subunit conversion, reference generation, verification assertions, raw-body webhook signature validation, and Next.js route factories. It supports hosted checkout, Ghana mobile money, idempotent webhooks, and test-to-live guidance.
 
 Example request:
 
@@ -51,7 +61,7 @@ Example request:
 
 ### Cloudflare R2 storage
 
-The R2 recipe selects between a native Worker binding, an S3-compatible Node/VPS client, and short-lived presigned browser access. It guides bucket and credential setup, least-privilege access, upload authorization, and a real object round-trip test.
+The R2 recipe includes a lazy S3-compatible client, safe object-key generation, object operations, short-lived presigned URLs, browser upload, and authorization-aware Next.js route factories.
 
 Example request:
 
@@ -59,7 +69,7 @@ Example request:
 
 ### Mapbox location and search
 
-The Mapbox recipe composes its official agent skills and optional MCP servers, then guides token creation, web integration, search/geocoding, Ghana-aware result behavior, geolocation permissions, routing, and live verification.
+The Mapbox recipe includes a client-only React location picker with Search Box, a live map, selected-place marker, Ghana defaults, and an explicit longitude/latitude result contract.
 
 Example request:
 
@@ -72,11 +82,13 @@ Preview or install the local skill before publishing changes:
 ```bash
 npx skills add . --list
 npx skills add . --skill compose-typescript-integrations
+node skills/compose-typescript-integrations/scripts/test-scaffold.mjs
 ```
 
 ## Principles
 
 - Compose maintained upstream tools instead of copying them.
+- Keep reusable provider code behind small application-owned interfaces.
 - Ask only for information the developer has not already provided.
 - Lead exact account and key setup without exposing secrets in chat.
 - Modify existing applications rather than forcing a starter template.

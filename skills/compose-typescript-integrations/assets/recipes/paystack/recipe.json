@@ -1,0 +1,17 @@
+{
+  "id": "paystack",
+  "name": "Paystack payments",
+  "dependencies": [],
+  "env": ["PAYSTACK_SECRET_KEY"],
+  "files": [
+    { "source": "client.ts", "destination": "{{src}}/integrations/paystack/client.ts" },
+    { "source": "money.ts", "destination": "{{src}}/integrations/paystack/money.ts" },
+    { "source": "webhook.ts", "destination": "{{src}}/integrations/paystack/webhook.ts" },
+    { "source": "next-routes.ts", "destination": "{{src}}/integrations/paystack/next-routes.ts" }
+  ],
+  "manualSteps": [
+    "Create initialize and webhook route files using the exported route factories.",
+    "Resolve the payable order and amount from server-side data, never the browser.",
+    "Implement idempotent fulfillment before enabling a live webhook."
+  ]
+}

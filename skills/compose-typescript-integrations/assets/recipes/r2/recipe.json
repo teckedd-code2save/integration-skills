@@ -1,0 +1,22 @@
+{
+  "id": "r2",
+  "name": "Cloudflare R2 storage",
+  "dependencies": ["@aws-sdk/client-s3", "@aws-sdk/s3-request-presigner"],
+  "env": [
+    "CLOUDFLARE_ACCOUNT_ID",
+    "R2_ACCESS_KEY_ID",
+    "R2_SECRET_ACCESS_KEY",
+    "R2_BUCKET"
+  ],
+  "files": [
+    { "source": "client.ts", "destination": "{{src}}/integrations/r2/client.ts" },
+    { "source": "objects.ts", "destination": "{{src}}/integrations/r2/objects.ts" },
+    { "source": "next-routes.ts", "destination": "{{src}}/integrations/r2/next-routes.ts" },
+    { "source": "upload.ts", "destination": "{{src}}/integrations/r2/upload.ts" }
+  ],
+  "manualSteps": [
+    "Create a bucket-scoped R2 API token and place its values directly in the secret store.",
+    "Create route files using the route factories and implement product-specific authorization.",
+    "Configure R2 CORS for the exact browser origins and PUT headers used by the application."
+  ]
+}

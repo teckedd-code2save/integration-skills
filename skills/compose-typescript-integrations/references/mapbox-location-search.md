@@ -66,6 +66,27 @@ When the DevKit connector is available and authorized, use it to create or inspe
 
 ## Compose the product experience
 
+For a Next.js App Router project, scaffold the ready React component:
+
+```bash
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs add mapbox --target . --install
+```
+
+Use it from a client component and persist the explicit selection contract:
+
+```tsx
+import { MapboxLocationPicker } from "@/components/mapbox-location-picker";
+
+<MapboxLocationPicker
+  country="gh"
+  onSelect={({ mapboxId, name, address, longitude, latitude }) => {
+    saveLocation({ mapboxId, name, address, longitude, latitude });
+  }}
+/>
+```
+
+The default center is Accra and `country="gh"` restricts results to Ghana. Remove the country prop when Ghana should be a starting bias rather than a hard boundary. Adapt the component's wrapper and map height to the existing design system.
+
 Use `mapbox-gl` only when the interface needs a rendered map. Use Mapbox Search JS or the relevant search API for places and addresses. Preserve Mapbox attribution when required.
 
 For interactive search:

@@ -1,0 +1,13 @@
+{
+  "name": "integration-skills",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node skills/compose-typescript-integrations/scripts/test-scaffold.mjs",
+    "starters": "node skills/compose-typescript-integrations/scripts/scaffold.mjs list"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

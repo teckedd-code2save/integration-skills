@@ -1,0 +1,26 @@
+{
+  "id": "clerk",
+  "name": "Clerk authentication",
+  "dependencies": ["@clerk/nextjs"],
+  "env": [
+    "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
+    "CLERK_SECRET_KEY",
+    { "name": "NEXT_PUBLIC_CLERK_SIGN_IN_URL", "value": "/sign-in" },
+    { "name": "NEXT_PUBLIC_CLERK_SIGN_UP_URL", "value": "/sign-up" },
+    { "name": "NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL", "value": "/" },
+    { "name": "NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL", "value": "/" }
+  ],
+  "files": [
+    { "source": "proxy.ts", "destination": "{{src}}/{{proxy}}" },
+    { "source": "provider.tsx", "destination": "{{src}}/integrations/clerk/provider.tsx" },
+    { "source": "auth-controls.tsx", "destination": "{{src}}/components/clerk-auth-controls.tsx" },
+    { "source": "sign-in-page.tsx", "destination": "{{src}}/app/sign-in/[[...sign-in]]/page.tsx" },
+    { "source": "sign-up-page.tsx", "destination": "{{src}}/app/sign-up/[[...sign-up]]/page.tsx" },
+    { "source": "private-route.ts", "destination": "{{src}}/app/api/private/route.ts" }
+  ],
+  "manualSteps": [
+    "Wrap the existing root layout children with AppAuthProvider; do not replace the layout.",
+    "Adjust the protected route matcher to the product's real private routes.",
+    "Run npx clerk init or configure Google and phone sign-in in the Clerk Dashboard."
+  ]
+}

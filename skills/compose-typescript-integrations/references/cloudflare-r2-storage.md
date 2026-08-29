@@ -52,6 +52,29 @@ All four values are server-side configuration. Do not prefix credentials with `N
 
 ## Copy-ready Node/VPS adapter
 
+For a Next.js App Router project, install the executable starter:
+
+```bash
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs add r2 --target . --install
+```
+
+It creates the S3-compatible client, object helpers, a browser upload helper, and authorization-aware route factories. Compose a route using the application's real session and ownership rules:
+
+```ts
+import { createR2UploadRoute } from "@/integrations/r2/next-routes";
+
+export const POST = createR2UploadRoute({
+  allowedContentTypes: new Set(["image/jpeg", "image/png", "application/pdf"]),
+  async authorize(request) {
+    const user = await requireCurrentUser(request);
+    const { contentType, extension } = await request.json();
+    return { ownerId: user.id, contentType, extension };
+  },
+});
+```
+
+The route generates the object key on the server and limits presigned URLs to five minutes. Add product-specific size and purpose checks before issuing a URL, and persist the returned key against its owner after upload confirmation.
+
 Install only the packages required by the chosen operations:
 
 ```bash

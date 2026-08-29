@@ -23,6 +23,16 @@ If authentication already exists, describe the overlap and migration impact befo
 
 ## Use Clerk's maintained setup
 
+For a Next.js App Router project, scaffold the code starter first:
+
+```bash
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs add clerk --target . --install
+```
+
+This creates the version-appropriate `proxy.ts` or `middleware.ts`, provider wrapper, account controls, sign-in/sign-up routes, and protected API example. It preserves existing files. Import `AppAuthProvider` from `integrations/clerk/provider` and wrap the existing root layout's children without replacing other providers. Change the default `/dashboard` and `/api/private` matcher to the product's actual private surface.
+
+The starter covers application code; authentication methods remain instance configuration. Continue with Clerk's maintained CLI or Dashboard for Google, phone OTP, and other requested methods.
+
 Prefer Clerk's official tooling:
 
 ```bash
