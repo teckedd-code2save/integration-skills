@@ -48,11 +48,13 @@ Do not pass a key directly in a recorded command, even when the MCP README demon
 
 ## Implement the payment boundary
 
-For a Next.js App Router project, scaffold the server modules:
+For a Next.js App Router or Express TypeScript server, scaffold the server modules:
 
 ```bash
 node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs add paystack --target .
 ```
+
+The Express variant includes raw-body middleware and handler factories. Mount `paystackWebhookBody` on the webhook path before global JSON parsing. Paystack intentionally has no Vite-only starter because initialization, verification, secrets, and trusted amount resolution belong on the server.
 
 The starter has no runtime dependency beyond Node and the web `fetch` API. It provides `createPaystackInitializeRoute` and `createPaystackWebhookRoute`. Compose an initialize route with a trusted order lookup:
 

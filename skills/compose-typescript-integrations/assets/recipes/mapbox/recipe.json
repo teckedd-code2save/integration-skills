@@ -10,5 +10,19 @@
     "Restrict the public Mapbox token to the application's development and production URLs.",
     "Use country='gh' only when results must be Ghana-only; omit it when Ghana should merely be the initial bias.",
     "Persist longitude before latitude and let the user confirm the selected place."
-  ]
+  ],
+  "variants": {
+    "vite-react": {
+      "dependencies": ["mapbox-gl", "@mapbox/search-js-react"],
+      "env": ["VITE_MAPBOX_ACCESS_TOKEN"],
+      "files": [
+        { "source": "vite-location-picker.tsx", "destination": "{{src}}/components/mapbox-location-picker.tsx" }
+      ],
+      "manualSteps": [
+        "Restrict the public Mapbox token to the application's development and production URLs.",
+        "Use country='gh' only when results must be Ghana-only; omit it when Ghana should merely be the initial bias.",
+        "Persist longitude before latitude and let the user confirm the selected place."
+      ]
+    }
+  }
 }

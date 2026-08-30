@@ -66,11 +66,13 @@ When the DevKit connector is available and authorized, use it to create or inspe
 
 ## Compose the product experience
 
-For a Next.js App Router project, scaffold the ready React component:
+For a Next.js App Router or Vite + React project, scaffold the ready React component:
 
 ```bash
 node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs add mapbox --target . --install
 ```
+
+The Vite variant reads `VITE_MAPBOX_ACCESS_TOKEN`; the Next.js variant reads `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN`. Both are public browser tokens and should be URL-restricted. Mapbox intentionally has no Express-only component starter.
 
 Use it from a client component and persist the explicit selection contract:
 

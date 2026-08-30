@@ -2,7 +2,7 @@
 
 A small, agent-first collection for adding maintained third-party capabilities to existing TypeScript applications.
 
-It combines provider SDKs and CLIs with executable TypeScript starters. The included scaffolder safely copies maintained adapters, route factories, components, and environment placeholders into an existing Next.js App Router project without overwriting user files by default.
+It combines provider SDKs and CLIs with executable TypeScript starters. The included scaffolder safely copies maintained adapters, route factories, components, and environment placeholders into Next.js App Router, Vite + React, and Express TypeScript applications without overwriting user files by default.
 
 ## Point an agent at it
 
@@ -35,8 +35,18 @@ The recommended command composes one or several integrations and records the cho
 
 ```bash
 node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs list
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs inspect --target .
 node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose clerk paystack r2 mapbox --target . --install
 ```
+
+For a frontend/backend monorepo, target each application workspace independently. For example:
+
+```bash
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose clerk mapbox r2 --target apps/web --install
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose clerk paystack r2 --target apps/api --install
+```
+
+The command rejects providers that do not belong on that target—for example, Paystack server code on a Vite browser app. `inspect` also surfaces SDK evidence for integrations that may already exist so the agent can preserve and adapt them.
 
 That creates `integrations.config.json` plus consistent application imports:
 
@@ -58,11 +68,20 @@ node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose
 
 Existing files are preserved and reported for deliberate merging. `--dry-run` previews changes; `--force` is available only when replacement is intentional.
 
+Scaffolding automatically continues into setup and verification work. Agents should run:
+
+```bash
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs setup r2 --target apps/api
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs doctor r2 --target apps/api --live
+```
+
+`setup` reveals only which values are present or missing, then gives the connector/CLI/dashboard walkthrough. The R2 live doctor creates one temporary probe object, reads it back, and deletes it. Existing SDKs are treated as evidence to investigate—not as proof that an integration is configured or works.
+
 ## Available recipes
 
 ### Clerk authentication
 
-The Clerk recipe includes version-aware Next.js middleware/proxy, a provider wrapper, sign-in and sign-up pages, account controls, and a protected API example. It composes Clerk's CLI for account linking and Google/phone configuration.
+The Clerk recipe includes version-aware Next.js middleware/proxy, Vite + React providers and account controls, and Express authentication middleware. It composes Clerk's CLI for account linking and Google/phone configuration.
 
 Example request:
 
@@ -70,7 +89,7 @@ Example request:
 
 ### Paystack payments
 
-The Paystack recipe includes a server client, precise subunit conversion, reference generation, verification assertions, raw-body webhook signature validation, and Next.js route factories. It supports hosted checkout, Ghana mobile money, idempotent webhooks, and test-to-live guidance.
+The Paystack recipe includes a server client, precise subunit conversion, reference generation, verification assertions, raw-body webhook signature validation, and Next.js or Express route factories. It supports hosted checkout, Ghana mobile money, idempotent webhooks, and test-to-live guidance.
 
 Example request:
 
@@ -78,7 +97,7 @@ Example request:
 
 ### Cloudflare R2 storage
 
-The R2 recipe includes a lazy S3-compatible client, safe object-key generation, object operations, short-lived presigned URLs, browser upload, and authorization-aware Next.js route factories.
+The R2 recipe includes a lazy S3-compatible client, safe object-key generation, object operations, short-lived presigned URLs, browser upload, and authorization-aware Next.js or Express route factories. Vite receives only the browser uploader—never server credentials.
 
 Example request:
 

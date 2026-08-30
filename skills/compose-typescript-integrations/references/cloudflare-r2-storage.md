@@ -52,11 +52,22 @@ All four values are server-side configuration. Do not prefix credentials with `N
 
 ## Copy-ready Node/VPS adapter
 
-For a Next.js App Router project, install the executable starter:
+For a Next.js App Router, Vite + React, or Express TypeScript target, install the executable starter:
 
 ```bash
 node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs add r2 --target . --install
 ```
+
+Next.js and Express receive server-side S3-compatible clients and presigned-URL route factories. Vite receives only `uploadToPresignedUrl`; obtain its URL from an authenticated server endpoint and never put R2 credentials in `VITE_` variables.
+
+Continue immediately with the guided configuration and probe:
+
+```bash
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs setup r2 --target .
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs doctor r2 --target . --live
+```
+
+Do this even when an AWS SDK dependency already exists. Trace its endpoint, region, bucket, object ownership, CORS, and tests: an AWS S3 client without the Cloudflare account endpoint is not yet an R2 integration. The live doctor performs a temporary put/get/delete round trip and cleans up its own object.
 
 It creates the S3-compatible client, object helpers, a browser upload helper, and authorization-aware route factories. Compose a route using the application's real session and ownership rules:
 

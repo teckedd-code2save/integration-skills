@@ -1,9 +1,18 @@
 #!/usr/bin/env node
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, copyFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
 
 const skillRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const recipesRoot = join(skillRoot, "assets", "recipes");
@@ -25,6 +34,7 @@ function parseArgs(argv) {
     install: false,
     dryRun: false,
     json: false,
+    live: false,
   };
 
   for (let index = 1; index < argv.length; index += 1) {
@@ -34,6 +44,7 @@ function parseArgs(argv) {
     else if (value === "--install") options.install = true;
     else if (value === "--dry-run") options.dryRun = true;
     else if (value === "--json") options.json = true;
+    else if (value === "--live") options.live = true;
     else if (value.startsWith("--")) fail(`unknown option ${value}`);
     else options.recipes.push(value);
   }
@@ -65,27 +76,162 @@ function packageManager(target) {
   return ["npm", "install"];
 }
 
-function inspectNextProject(target) {
+function allDependencies(packageJson) {
+  return {
+    ...packageJson.dependencies,
+    ...packageJson.devDependencies,
+  };
+}
+
+function sourceFiles(target, limit = 400) {
+  const files = [];
+  const ignored = new Set([".git", ".next", "build", "coverage", "dist", "node_modules"]);
+  const visit = (directory) => {
+    if (files.length >= limit || !existsSync(directory)) return;
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (files.length >= limit || ignored.has(entry.name)) continue;
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) visit(path);
+      else if (/\.(?:[cm]?[jt]sx?|env(?:\.example)?)$/.test(entry.name) && statSync(path).size < 512_000) {
+        files.push(path);
+      }
+    }
+  };
+  visit(join(target, "src"));
+  visit(join(target, "app"));
+  visit(join(target, "integrations"));
+  for (const name of [".env.example", ".env.local.example"]) {
+    if (existsSync(join(target, name))) files.push(join(target, name));
+  }
+  return files;
+}
+
+function sourceIntegrationSignals(target) {
+  const signals = [];
+  const seen = new Set();
+  const add = (integration, evidence, path) => {
+    const key = `${integration}:${evidence}:${path}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    signals.push({ integration, evidence, path: relative(target, path), kind: "source" });
+  };
+  for (const path of sourceFiles(target)) {
+    const content = readFileSync(path, "utf8");
+    if (/@clerk\//.test(content)) add("clerk", "Clerk source integration", path);
+    else if (/jsonwebtoken|verifyToken\(|OTPService|otp\/verify/i.test(content)) {
+      add("clerk", "Existing non-Clerk authentication; plan account and session migration", path);
+    }
+    if (/api\.paystack\.co|x-paystack-signature|PAYSTACK_SECRET_KEY/.test(content)) {
+      add("paystack", "Paystack API, webhook, or configuration path", path);
+    }
+    if (/r2\.cloudflarestorage\.com|CLOUDFLARE_ACCOUNT_ID|R2_ACCESS_KEY_ID/.test(content)) {
+      add("r2", "Cloudflare R2 endpoint or configuration", path);
+    } else if (/S3Client|AWS_S3_BUCKET|@aws-sdk\/client-s3/.test(content)) {
+      add("r2", "Generic S3-compatible implementation; verify the R2 endpoint", path);
+    }
+    if (/mapbox-gl|@mapbox\/|MAPBOX_ACCESS_TOKEN/.test(content)) {
+      add("mapbox", "Mapbox source integration", path);
+    } else if (/GOOGLE_MAPS_API_KEY|Geoapify|maps\.googleapis\.com/.test(content)) {
+      add("mapbox", "Existing non-Mapbox location provider; verify migration intent", path);
+    }
+  }
+  return signals;
+}
+
+function integrationSignals(packageJson, target) {
+  const dependencies = allDependencies(packageJson);
+  const signals = [];
+  if (Object.keys(dependencies).some((name) => name.startsWith("@clerk/"))) {
+    signals.push({ integration: "clerk", evidence: "Clerk SDK dependency", kind: "dependency" });
+  }
+  if (dependencies["paystack-api"] || dependencies["@paystack/inline-js"]) {
+    signals.push({ integration: "paystack", evidence: "Paystack SDK dependency", kind: "dependency" });
+  }
+  if (dependencies["@aws-sdk/client-s3"]) {
+    signals.push({
+      integration: "r2",
+      evidence: "S3-compatible SDK dependency (could be AWS S3, R2, or another provider)",
+      kind: "dependency",
+    });
+  }
+  if (dependencies["mapbox-gl"] || Object.keys(dependencies).some((name) => name.startsWith("@mapbox/"))) {
+    signals.push({ integration: "mapbox", evidence: "Mapbox SDK dependency", kind: "dependency" });
+  }
+  return [...signals, ...sourceIntegrationSignals(target)];
+}
+
+function pnpmWorkspaces(target) {
+  const path = join(target, "pnpm-workspace.yaml");
+  if (!existsSync(path)) return [];
+  return readFileSync(path, "utf8")
+    .split(/\r?\n/)
+    .map((line) => line.match(/^\s*-\s*["']?([^"'#]+?)["']?\s*$/)?.[1])
+    .filter(Boolean);
+}
+
+function inspectProject(target) {
   const packagePath = join(target, "package.json");
   if (!existsSync(packagePath)) fail(`no package.json found in ${target}`);
 
   const packageJson = readJson(packagePath);
-  const nextRange = packageJson.dependencies?.next ?? packageJson.devDependencies?.next;
-  if (!nextRange) fail("the first release supports Next.js App Router projects only");
+  const dependencies = allDependencies(packageJson);
+  const signals = integrationSignals(packageJson, target);
+  const nextRange = dependencies.next;
 
-  const versionMatch = String(nextRange).match(/(\d+)/);
-  const nextMajor = versionMatch ? Number(versionMatch[1]) : 16;
-  const hasSrcApp = existsSync(join(target, "src", "app"));
-  const hasRootApp = existsSync(join(target, "app"));
-  if (!hasSrcApp && !hasRootApp) {
-    fail("no Next.js App Router directory found (expected src/app or app)");
+  const pnpmWorkspacePatterns = pnpmWorkspaces(target);
+  if (!nextRange && (packageJson.workspaces || pnpmWorkspacePatterns.length > 0)) {
+    const workspaces = pnpmWorkspacePatterns.length > 0
+      ? pnpmWorkspacePatterns
+      : Array.isArray(packageJson.workspaces)
+        ? packageJson.workspaces
+        : packageJson.workspaces.packages ?? [];
+    return {
+      kind: "workspace-root",
+      src: "",
+      framework: "typescript-workspace-root",
+      signals,
+      workspaces,
+    };
   }
 
-  return {
-    src: hasSrcApp ? "src" : "",
-    proxy: nextMajor >= 16 ? "proxy.ts" : "middleware.ts",
-    nextMajor,
-  };
+  if (nextRange) {
+    const versionMatch = String(nextRange).match(/(\d+)/);
+    const nextMajor = versionMatch ? Number(versionMatch[1]) : 16;
+    const hasSrcApp = existsSync(join(target, "src", "app"));
+    const hasRootApp = existsSync(join(target, "app"));
+    if (!hasSrcApp && !hasRootApp) {
+      fail("no Next.js App Router directory found (expected src/app or app)");
+    }
+
+    return {
+      kind: "nextjs-app-router",
+      src: hasSrcApp ? "src" : "",
+      proxy: nextMajor >= 16 ? "proxy.ts" : "middleware.ts",
+      nextMajor,
+      framework: `nextjs-${nextMajor}-app-router`,
+      signals,
+    };
+  }
+
+  if (dependencies.vite && dependencies.react && dependencies["react-dom"]) {
+    return {
+      kind: "vite-react",
+      src: "src",
+      framework: "vite-react",
+      signals,
+    };
+  }
+
+  if (dependencies.express) {
+    return {
+      kind: "express",
+      src: existsSync(join(target, "src")) ? "src" : "src",
+      framework: "express-typescript",
+      signals,
+    };
+  }
+
+  fail("supported targets are Next.js App Router, Vite + React, and Express TypeScript projects");
 }
 
 function destinationPath(template, context) {
@@ -155,7 +301,7 @@ function managedCompositionFile(target, path, content, options) {
   return { path, status };
 }
 
-function compositionSources(ids) {
+function compositionSources(ids, context) {
   const selected = new Set(ids);
   const capabilities = {
     auth: selected.has("clerk") ? "clerk" : null,
@@ -169,15 +315,25 @@ function compositionSources(ids) {
     serverExports.push(
       'export { initializePaystackPayment as initializePayment, verifyPaystackPayment as verifyPayment, assertVerifiedPayment } from "./paystack/client";',
       'export { createPaymentReference, toPaystackSubunit as toPaymentSubunit } from "./paystack/money";',
-      'export { createPaystackInitializeRoute as createPaymentInitializeRoute, createPaystackWebhookRoute as createPaymentWebhookRoute } from "./paystack/next-routes";',
+      context.kind === "express"
+        ? 'export { createPaystackInitializeHandler as createPaymentInitializeHandler, createPaystackWebhookHandler as createPaymentWebhookHandler, paystackWebhookBody } from "./paystack/express-routes";'
+        : 'export { createPaystackInitializeRoute as createPaymentInitializeRoute, createPaystackWebhookRoute as createPaymentWebhookRoute } from "./paystack/next-routes";',
       'export type { InitializePaystackPayment as InitializePayment, PaystackCurrency as PaymentCurrency, VerifiedPaystackTransaction as VerifiedPayment } from "./paystack/client";',
       'export type { PaystackWebhookEvent as PaymentWebhookEvent } from "./paystack/webhook";',
     );
   }
   if (selected.has("r2")) {
     serverExports.push(
-      'export { createR2UploadRoute as createStorageUploadRoute, createR2DownloadRoute as createStorageDownloadRoute } from "./r2/next-routes";',
+      context.kind === "express"
+        ? 'export { createR2UploadHandler as createStorageUploadHandler, createR2DownloadHandler as createStorageDownloadHandler } from "./r2/express-routes";'
+        : 'export { createR2UploadRoute as createStorageUploadRoute, createR2DownloadRoute as createStorageDownloadRoute } from "./r2/next-routes";',
       'export { putR2Object as putStorageObject, headR2Object as headStorageObject, deleteR2Object as deleteStorageObject, createR2UploadUrl as createStorageUploadUrl, createR2DownloadUrl as createStorageDownloadUrl, createObjectKey as createStorageObjectKey } from "./r2/objects";',
+    );
+  }
+
+  if (selected.has("clerk") && context.kind === "express") {
+    serverExports.push(
+      'export { clerkAuthMiddleware, requireClerkAuth, getAuthenticatedUserId } from "./clerk/middleware";',
     );
   }
 
@@ -185,7 +341,9 @@ function compositionSources(ids) {
     ? 'export { ClerkAuthControls as AuthControls } from "../../components/clerk-auth-controls";'
     : "export {};";
   const locationClient = selected.has("mapbox")
-    ? 'import dynamic from "next/dynamic";\n\nexport type { MapboxLocation as LocationSelection } from "../../components/mapbox-location-picker";\n\nexport const LocationPicker = dynamic(\n  () => import("../../components/mapbox-location-picker").then((module) => module.MapboxLocationPicker),\n  { ssr: false },\n);'
+    ? context.kind === "nextjs-app-router"
+      ? 'import dynamic from "next/dynamic";\n\nexport type { MapboxLocation as LocationSelection } from "../../components/mapbox-location-picker";\n\nexport const LocationPicker = dynamic(\n  () => import("../../components/mapbox-location-picker").then((module) => module.MapboxLocationPicker),\n  { ssr: false },\n);'
+      : 'export { MapboxLocationPicker as LocationPicker } from "../../components/mapbox-location-picker";\nexport type { MapboxLocation as LocationSelection } from "../../components/mapbox-location-picker";'
     : "export {};";
   const storageClient = selected.has("r2")
     ? 'export { uploadToPresignedUrl as uploadToStorageUrl } from "../r2/upload";'
@@ -195,9 +353,20 @@ function compositionSources(ids) {
     ? `${generatedMarker}\n\nimport { AppAuthProvider } from "./clerk/provider";\nimport type { ReactNode } from "react";\n\nexport function AppIntegrationsProvider({ children }: { children: ReactNode }) {\n  return <AppAuthProvider>{children}</AppAuthProvider>;\n}\n`
     : `${generatedMarker}\n\nimport type { ReactNode } from "react";\n\nexport function AppIntegrationsProvider({ children }: { children: ReactNode }) {\n  return children;\n}\n`;
 
-  return {
+  const shared = {
     "integrations/capabilities.ts": `${generatedMarker}\n\nexport const integrationCapabilities = ${JSON.stringify(capabilities, null, 2)} as const;\n`,
-    "integrations/server.ts": `${generatedMarker}\n\n${serverExports.length ? serverExports.join("\n") : "export {};"}\n`,
+  };
+
+  if (context.kind === "express") {
+    return {
+      ...shared,
+      "integrations/server.ts": `${generatedMarker}\n\n${serverExports.length ? serverExports.join("\n") : "export {};"}\n`,
+    };
+  }
+
+  return {
+    ...shared,
+    "integrations/server.ts": `${generatedMarker}\n\n${context.kind === "nextjs-app-router" && serverExports.length ? serverExports.join("\n") : "export {};"}\n`,
     "integrations/client/auth.ts": `${generatedMarker}\n\n"use client";\n\n${authClient}\n`,
     "integrations/client/location.ts": `${generatedMarker}\n\n"use client";\n\n${locationClient}\n`,
     "integrations/client/storage.ts": `${generatedMarker}\n\n"use client";\n\n${storageClient}\n`,
@@ -207,7 +376,7 @@ function compositionSources(ids) {
 
 function composeProject(target, context, ids, options) {
   const config = writeCompositionConfig(target, ids, options);
-  const files = Object.entries(compositionSources(ids)).map(([path, content]) =>
+  const files = Object.entries(compositionSources(ids, context)).map(([path, content]) =>
     managedCompositionFile(target, destinationPath(`{{src}}/${path}`, context), content, options),
   );
   return { config, files };
@@ -268,12 +437,179 @@ function clerkReactCompatibility(target, dependencies) {
   return adjustments;
 }
 
+function recipeVariant(recipe, context) {
+  if (context.kind === "nextjs-app-router") return recipe;
+  const variant = recipe.variants?.[context.kind];
+  if (!variant) {
+    fail(`${recipe.id} does not have a ${context.framework} starter; target the matching web or server workspace`);
+  }
+  return { ...recipe, ...variant, variants: undefined };
+}
+
+function parseEnvFile(path) {
+  if (!existsSync(path)) return {};
+  const values = {};
+  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
+    const match = line.match(/^\s*([A-Z][A-Z0-9_]*)\s*=\s*(.*)\s*$/);
+    if (!match) continue;
+    values[match[1]] = match[2].replace(/^(["'])(.*)\1$/, "$2");
+  }
+  return values;
+}
+
+function targetEnvironment(target) {
+  const parent = resolve(target, "..");
+  const values = {};
+  for (const path of [
+    join(parent, ".env"),
+    join(parent, ".env.local"),
+    join(target, ".env"),
+    join(target, ".env.local"),
+  ]) {
+    Object.assign(values, parseEnvFile(path));
+  }
+  return { ...values, ...process.env };
+}
+
+function configuredValue(value) {
+  if (!value || !value.trim()) return false;
+  return !/(?:your[_-]|change-me|example|replace-me|^<|^\$\{)/i.test(value);
+}
+
+const setupGuides = {
+  clerk: {
+    connector: "Clerk CLI or authenticated Clerk dashboard",
+    dashboard: "https://dashboard.clerk.com/",
+    steps: [
+      "Create or select one Clerk application for both the frontend and backend.",
+      "Enable only the requested sign-in methods (for example Google and phone OTP).",
+      "Store publishable keys in the web environment and secret keys only in the server secret store.",
+      "Run the official Clerk doctor and exercise sign-in, protected API access, and sign-out.",
+    ],
+  },
+  paystack: {
+    connector: "Paystack dashboard",
+    dashboard: "https://dashboard.paystack.com/#/settings/developer",
+    steps: [
+      "Start with test keys and store the secret key only on the server.",
+      "Register the exact HTTPS webhook URL and retain the raw request body for signature checks.",
+      "Run a test card or Ghana mobile-money flow, verify the transaction server-side, and replay the webhook to prove idempotency.",
+      "Promote to live keys only after the test path and operational alerts pass.",
+    ],
+  },
+  r2: {
+    connector: "Cloudflare connector, Wrangler, or authenticated Cloudflare dashboard",
+    dashboard: "https://dash.cloudflare.com/?to=/:account/r2",
+    steps: [
+      "Create or select a private R2 bucket in the application account.",
+      "Create a bucket-scoped Object Read & Write API token and store its S3 access key ID and secret outside git.",
+      "Configure CORS for the exact frontend origins, methods, and Content-Type header used by browser uploads.",
+      "Run doctor r2 --live to put, read, and delete a temporary probe object before calling the integration complete.",
+    ],
+  },
+  mapbox: {
+    connector: "Mapbox account dashboard",
+    dashboard: "https://account.mapbox.com/access-tokens/",
+    steps: [
+      "Create a public token with only the scopes needed for maps and search.",
+      "Restrict the token to the exact development and production URLs.",
+      "Store it in the framework's public environment variable and test search, selection, longitude/latitude order, and denied-token behavior.",
+    ],
+  },
+};
+
+function configurationReport(selected, context, target) {
+  const environment = targetEnvironment(target);
+  return selected.map((recipe) => {
+    const variant = recipeVariant(recipe, context);
+    const variables = variant.env.map((entry) => typeof entry === "string" ? entry : entry.name);
+    const configured = variables.filter((name) => configuredValue(environment[name]));
+    const missing = variables.filter((name) => !configured.includes(name));
+    const status = recipe.id === "r2" && context.kind === "vite-react"
+      ? "backend-setup-required"
+      : missing.length === 0
+        ? "locally-configured"
+        : "setup-required";
+    return {
+      id: recipe.id,
+      name: recipe.name,
+      status,
+      configured,
+      missing,
+      existingSignals: context.signals.filter((signal) => signal.integration === recipe.id),
+      guide: setupGuides[recipe.id],
+    };
+  });
+}
+
+async function runR2LiveProbe(target, environment) {
+  const required = [
+    "CLOUDFLARE_ACCOUNT_ID",
+    "R2_ACCESS_KEY_ID",
+    "R2_SECRET_ACCESS_KEY",
+    "R2_BUCKET",
+  ];
+  if (required.some((name) => !configuredValue(environment[name]))) {
+    return { status: "blocked", detail: "R2 environment is incomplete" };
+  }
+
+  const requireFromTarget = createRequire(join(target, "package.json"));
+  try {
+    const {
+      S3Client,
+      PutObjectCommand,
+      GetObjectCommand,
+      DeleteObjectCommand,
+    } = requireFromTarget("@aws-sdk/client-s3");
+    const client = new S3Client({
+      region: "auto",
+      endpoint: `https://${environment.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: environment.R2_ACCESS_KEY_ID,
+        secretAccessKey: environment.R2_SECRET_ACCESS_KEY,
+      },
+    });
+    const key = `integration-kit-probe/${crypto.randomUUID()}.txt`;
+    const body = `integration-kit ${new Date().toISOString()}`;
+    try {
+      await client.send(new PutObjectCommand({ Bucket: environment.R2_BUCKET, Key: key, Body: body }));
+      const downloaded = await client.send(
+        new GetObjectCommand({ Bucket: environment.R2_BUCKET, Key: key }),
+      );
+      const received = await downloaded.Body.transformToString();
+      if (received !== body) throw new Error("probe object content did not round-trip");
+      return { status: "passed", detail: "temporary object put/get round-trip passed" };
+    } finally {
+      await client.send(new DeleteObjectCommand({ Bucket: environment.R2_BUCKET, Key: key }));
+    }
+  } catch (error) {
+    return { status: "failed", detail: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+async function doctorReport(selected, context, target, live) {
+  const configuration = configurationReport(selected, context, target);
+  const environment = targetEnvironment(target);
+  const probes = [];
+  for (const item of configuration) {
+    if (!live) {
+      probes.push({ id: item.id, status: "not-run", detail: "pass --live after configuration" });
+    } else if (item.id === "r2") {
+      probes.push({ id: item.id, ...(await runR2LiveProbe(target, environment)) });
+    } else {
+      probes.push({ id: item.id, status: "manual", detail: "follow the provider verification path in the recipe" });
+    }
+  }
+  return { target, framework: context.framework, configuration, probes };
+}
+
 function scaffoldRecipe(recipe, target, context, options) {
+  const resolvedRecipe = recipeVariant(recipe, context);
   const created = [];
   const unchanged = [];
   const skipped = [];
 
-  for (const entry of recipe.files) {
+  for (const entry of resolvedRecipe.files) {
     const source = join(recipesRoot, recipe.id, "template", entry.source);
     const destinationRelative = destinationPath(entry.destination, context);
     const destination = join(target, destinationRelative);
@@ -294,16 +630,16 @@ function scaffoldRecipe(recipe, target, context, options) {
     created.push(destinationRelative);
   }
 
-  const env = ensureEnvExample(target, recipe.env, options.dryRun);
+  const env = ensureEnvExample(target, resolvedRecipe.env, options.dryRun);
   return {
     id: recipe.id,
     name: recipe.name,
-    dependencies: recipe.dependencies,
+    dependencies: resolvedRecipe.dependencies,
     created,
     unchanged,
     skipped,
     env,
-    manualSteps: recipe.manualSteps,
+    manualSteps: resolvedRecipe.manualSteps,
   };
 }
 
@@ -333,9 +669,44 @@ if (options.command === "list") {
   process.exit(0);
 }
 
-if (!["add", "compose"].includes(options.command) || (options.command === "add" && options.recipes.length === 0)) {
+const context = inspectProject(options.target);
+
+if (options.command === "inspect") {
+  const inspection = {
+    target: options.target,
+    framework: context.framework,
+    workspaces: context.workspaces ?? [],
+    existingIntegrationSignals: context.signals,
+  };
+  if (options.json) console.log(JSON.stringify(inspection, null, 2));
+  else {
+    console.log(`Framework: ${inspection.framework}`);
+    if (inspection.workspaces.length > 0) {
+      console.log("Application workspaces:");
+      for (const workspace of inspection.workspaces) console.log(`  ${workspace}`);
+    }
+    if (inspection.existingIntegrationSignals.length === 0) {
+      console.log("Existing integration signals: none");
+    } else {
+      console.log("Existing integration signals:");
+      for (const signal of inspection.existingIntegrationSignals) {
+        console.log(`  ${signal.integration.padEnd(10)} ${signal.evidence}`);
+      }
+    }
+  }
+  process.exit(0);
+}
+
+if (context.kind === "workspace-root") {
+  fail("target is a workspace root; run compose against one of the application workspaces shown by inspect");
+}
+
+if (
+  !["add", "compose", "setup", "doctor"].includes(options.command) ||
+  (["add", "setup", "doctor"].includes(options.command) && options.recipes.length === 0)
+) {
   fail(
-    "usage: scaffold.mjs list | add <clerk|paystack|r2|mapbox>... | compose [clerk|paystack|r2|mapbox]... [--target DIR] [--install] [--dry-run] [--force] [--json]",
+    "usage: scaffold.mjs list | inspect --target DIR | setup <provider>... | doctor <provider>... [--live] | add <provider>... | compose [provider]... [--target DIR] [--install] [--dry-run] [--force] [--json]",
   );
 }
 
@@ -349,7 +720,44 @@ const selected = selectedIds.map((id) => {
   if (!recipe) fail(`unknown recipe ${id}; run 'scaffold.mjs list'`);
   return recipe;
 });
-const context = inspectNextProject(options.target);
+
+if (options.command === "setup") {
+  const report = {
+    target: options.target,
+    framework: context.framework,
+    integrations: configurationReport(selected, context, options.target),
+  };
+  if (options.json) console.log(JSON.stringify(report, null, 2));
+  else {
+    console.log(`Setup walkthrough for ${context.framework}`);
+    for (const item of report.integrations) {
+      console.log(`\n${item.name}: ${item.status}`);
+      if (item.configured.length > 0) console.log(`  configured ${item.configured.join(", ")}`);
+      if (item.missing.length > 0) console.log(`  missing    ${item.missing.join(", ")}`);
+      for (const signal of item.existingSignals) console.log(`  probe      ${signal.evidence}${signal.path ? ` (${signal.path})` : ""}`);
+      console.log(`  use        ${item.guide.connector}`);
+      console.log(`  open       ${item.guide.dashboard}`);
+      item.guide.steps.forEach((step, index) => console.log(`  ${index + 1}. ${step}`));
+    }
+  }
+  process.exit(0);
+}
+
+if (options.command === "doctor") {
+  const report = await doctorReport(selected, context, options.target, options.live);
+  if (options.json) console.log(JSON.stringify(report, null, 2));
+  else {
+    console.log(`Integration doctor for ${context.framework}`);
+    for (const item of report.configuration) {
+      console.log(`\n${item.name}: ${item.status}`);
+      if (item.missing.length > 0) console.log(`  missing    ${item.missing.join(", ")}`);
+      const probe = report.probes.find((candidate) => candidate.id === item.id);
+      console.log(`  probe      ${probe.status}: ${probe.detail}`);
+    }
+  }
+  process.exit(0);
+}
+
 const composition = options.command === "compose"
   ? composeProject(options.target, context, selectedIds, options)
   : null;
@@ -366,24 +774,40 @@ const dependencies = [
 const installed = options.install && !options.dryRun
   ? installDependencies(options.target, dependencies)
   : null;
+const setup = configurationReport(selected, context, options.target);
 
 const output = {
   target: options.target,
-  framework: `nextjs-${context.nextMajor}-app-router`,
+  framework: context.framework,
+  existingIntegrationSignals: context.signals,
   dryRun: options.dryRun,
   dependencies,
   installed,
+  setup,
   composition,
   results,
 };
 
 if (options.json) console.log(JSON.stringify(output, null, 2));
 else {
+  for (const signal of context.signals) {
+    console.log(`\nPreserved existing signal\n  ${signal.integration.padEnd(10)} ${signal.evidence}${signal.path ? ` (${signal.path})` : ""}`);
+  }
   if (composition) {
     console.log(`\nComposition manifest\n  ${composition.config.status.padEnd(10)} ${composition.config.path}`);
     for (const file of composition.files) console.log(`  ${file.status.padEnd(10)} ${file.path}`);
   }
   for (const result of results) printResult(result);
+  console.log("\nSetup walkthrough");
+  for (const item of setup) {
+    console.log(`\n  ${item.name}: ${item.status}`);
+    if (item.missing.length > 0) console.log(`  missing    ${item.missing.join(", ")}`);
+    for (const signal of item.existingSignals) console.log(`  inspect    ${signal.evidence}${signal.path ? ` (${signal.path})` : ""}`);
+    console.log(`  use        ${item.guide.connector}`);
+    console.log(`  open       ${item.guide.dashboard}`);
+    item.guide.steps.forEach((step, index) => console.log(`  ${index + 1}. ${step}`));
+  }
+  console.log(`\nRun diagnostics:\n  node ${relative(process.cwd(), fileURLToPath(import.meta.url))} doctor ${selectedIds.join(" ")} --target ${relative(process.cwd(), options.target) || "."}`);
   if (!options.install && dependencies.length > 0) {
     const [command, action] = packageManager(options.target);
     console.log(`\nInstall dependencies:\n  ${command} ${action} ${dependencies.join(" ")}`);

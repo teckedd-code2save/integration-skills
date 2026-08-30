@@ -5,7 +5,7 @@ description: Compose maintained third-party capabilities into existing TypeScrip
 
 # Compose TypeScript Integrations
 
-Add the requested capability to the existing application by composing the provider's maintained SDK, CLI, agent skill, and documentation. For Next.js App Router projects, use the bundled executable starters as the initial implementation, then refine them to fit the repository.
+Add the requested capability to the existing application by composing the provider's maintained SDK, CLI, agent skill, and documentation. Use the bundled executable starters for Next.js App Router, Vite + React, and Express TypeScript applications, then refine them to fit the repository.
 
 ## Route the request
 
@@ -20,7 +20,13 @@ Add the requested capability to the existing application by composing the provid
 
 ## Use the executable starters
 
-For a Next.js App Router project, prefer the composition command. It records the selected providers in `integrations.config.json`, installs their starters, and generates stable application-owned facades:
+Inspect the target first. At a workspace root, this lists the application workspaces; at an application target, it reports the framework and package-level signals for integrations that may already exist:
+
+```bash
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs inspect --target .
+```
+
+Run `compose` against one application target. In a monorepo, run it separately against the web and server workspaces. It records the selected providers in each target's `integrations.config.json`, installs the matching starters, and generates stable application-owned facades:
 
 ```bash
 node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose <clerk|paystack|r2|mapbox>... --target . --install
@@ -32,7 +38,7 @@ Subsequent agents can reproduce or repair the declared composition without resta
 node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose --target . --install
 ```
 
-The composition generates `integrations/capabilities.ts`, `integrations/server.ts`, `integrations/provider.tsx`, and capability-scoped client facades under `integrations/client/`. Use `client/auth`, `client/location`, and `client/storage` separately so browser-only SDKs are not pulled into unrelated rendering paths. Prefer these stable facades in application code; use provider modules directly only when the facade does not expose a required advanced operation. Wrap the root layout with `AppIntegrationsProvider` when the generated provider is used.
+Web compositions generate `integrations/capabilities.ts`, `integrations/provider.tsx`, and capability-scoped client facades under `integrations/client/`. Server compositions generate `integrations/capabilities.ts` and `integrations/server.ts`. Use the stable facades in application code; use provider modules directly only when the facade does not expose a required advanced operation. Wrap the existing React root or Next.js layout with `AppIntegrationsProvider` when the generated provider is used.
 
 Use the lower-level `add` command when only provider modules are wanted without a manifest or shared facade:
 
@@ -40,9 +46,18 @@ Use the lower-level `add` command when only provider modules are wanted without 
 node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs add <clerk|paystack|r2|mapbox> --target . --install
 ```
 
-Use `list` to inspect available starters and `--dry-run` to preview. The script detects `src/app` versus `app`, uses `proxy.ts` for Next.js 16+ and `middleware.ts` for older supported versions, adds only missing `.env.example` keys, and preserves existing files. Composition facades carry a generated-file marker and can be safely refreshed; a same-named user-owned file is skipped. Do not use `--force` merely to avoid merging; inspect skipped files and integrate the relevant code deliberately.
+Use `list` to inspect available starters and `--dry-run` to preview. The script detects Next.js App Router, Vite + React, Express, and workspace roots. It uses `proxy.ts` for Next.js 16+ and `middleware.ts` for older supported versions, selects browser-safe versus server-only modules, adds only missing `.env.example` keys, and preserves existing files. Package-level signals are warnings, not proof: inspect existing provider code before composing. Composition facades carry a generated-file marker and can be safely refreshed; a same-named user-owned file is skipped. Do not use `--force` merely to avoid merging; inspect skipped files and integrate the relevant code deliberately.
 
-The starters provide working provider boundaries, not product authorization or business rules. Connect their explicit callbacks to the application's authenticated user, order, ownership, and idempotency layers. For non-Next.js TypeScript projects, adapt the provider modules from `assets/recipes/<provider>/template` instead of running an incompatible scaffold.
+After scaffolding—or when `inspect` reports existing provider evidence—trigger the guided setup and diagnostic flow. Do not treat an installed package, environment-variable name, or fallback mode as a completed integration:
+
+```bash
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs setup <provider>... --target .
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs doctor <provider>... --target .
+```
+
+`setup` reports missing configuration without printing secret values and gives the exact connector/CLI/dashboard path. Inspect the existing call path, configuration, authorization, ownership, failure handling, and tests before choosing whether to reuse it behind the generated facade or replace it. For R2, run `doctor r2 --live` after configuration; it performs a temporary put/get/delete round trip and removes its probe object.
+
+The starters provide working provider boundaries, not product authorization or business rules. Connect their explicit callbacks to the application's authenticated user, order, ownership, and idempotency layers. Do not scaffold a browser-only provider into a server target or a server-only provider into a browser target; the command rejects those mismatches.
 
 ## Compose safely
 
@@ -56,4 +71,4 @@ The starters provide working provider boundaries, not product authorization or b
 
 ## Finish with evidence
 
-Run the provider's diagnostic command when one exists, plus the project's relevant typecheck, lint, tests, and build. Exercise one public path, one successful integrated path, and one protected or failure path where practical. Report what was configured, what was verified, and any remaining dashboard or production action.
+Run the bundled doctor and the provider's official diagnostic command when one exists, plus the project's relevant typecheck, lint, tests, and build. Exercise one public path, one successful integrated path, and one protected or failure path where practical. For an existing integration, include concrete probe evidence; package detection alone is never success. Report what was configured, what was verified, and any remaining dashboard or production action.

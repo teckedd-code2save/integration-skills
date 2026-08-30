@@ -23,13 +23,13 @@ If authentication already exists, describe the overlap and migration impact befo
 
 ## Use Clerk's maintained setup
 
-For a Next.js App Router project, scaffold the code starter first:
+Inspect the target, then scaffold the matching code starter:
 
 ```bash
 node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs add clerk --target . --install
 ```
 
-This creates the version-appropriate `proxy.ts` or `middleware.ts`, provider wrapper, account controls, sign-in/sign-up routes, and protected API example. It preserves existing files. Import `AppAuthProvider` from `integrations/clerk/provider` and wrap the existing root layout's children without replacing other providers. Change the default `/dashboard` and `/api/private` matcher to the product's actual private surface.
+For Next.js this creates the version-appropriate `proxy.ts` or `middleware.ts`, provider wrapper, account controls, sign-in/sign-up routes, and protected API example. For Vite + React it creates the provider and account controls with `VITE_CLERK_PUBLISHABLE_KEY`. For Express it creates `clerkAuthMiddleware`, `requireClerkAuth`, and `getAuthenticatedUserId`; mount the middleware before routes and reconcile it deliberately with existing JWT/session middleware. It preserves existing files.
 
 The starter covers application code; authentication methods remain instance configuration. Continue with Clerk's maintained CLI or Dashboard for Google, phone OTP, and other requested methods.
 
@@ -68,6 +68,8 @@ For Next.js, Clerk uses:
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
 CLERK_SECRET_KEY=
 ```
+
+Vite + React uses only `VITE_CLERK_PUBLISHABLE_KEY` in the browser. Express uses `CLERK_PUBLISHABLE_KEY` and server-only `CLERK_SECRET_KEY`. The frontend and backend must point to the same Clerk application.
 
 The publishable key may be exposed to the browser. `CLERK_SECRET_KEY` must remain server-side and must never use a public environment-variable prefix. Prefer `npx clerk env pull` or a connected deployment integration over copying values through chat. Confirm that local secret files are ignored by version control.
 

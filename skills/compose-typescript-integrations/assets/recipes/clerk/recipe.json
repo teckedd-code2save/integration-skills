@@ -22,5 +22,32 @@
     "Wrap the existing root layout children with AppIntegrationsProvider when using compose, or AppAuthProvider when using add; do not replace the layout.",
     "Adjust the protected route matcher to the product's real private routes.",
     "Run npx clerk init or configure Google and phone sign-in in the Clerk Dashboard."
-  ]
+  ],
+  "variants": {
+    "vite-react": {
+      "dependencies": ["@clerk/clerk-react"],
+      "env": ["VITE_CLERK_PUBLISHABLE_KEY"],
+      "files": [
+        { "source": "vite-provider.tsx", "destination": "{{src}}/integrations/clerk/provider.tsx" },
+        { "source": "vite-auth-controls.tsx", "destination": "{{src}}/components/clerk-auth-controls.tsx" }
+      ],
+      "manualSteps": [
+        "Wrap the existing React root with AppIntegrationsProvider when using compose, or AppAuthProvider when using add.",
+        "Add Clerk sign-in and sign-up components to the application's existing router instead of replacing it.",
+        "Configure social and phone sign-in in the Clerk Dashboard."
+      ]
+    },
+    "express": {
+      "dependencies": ["@clerk/express"],
+      "env": ["CLERK_PUBLISHABLE_KEY", "CLERK_SECRET_KEY"],
+      "files": [
+        { "source": "express-middleware.ts", "destination": "{{src}}/integrations/clerk/middleware.ts" }
+      ],
+      "manualSteps": [
+        "Mount clerkAuthMiddleware before routes and other authentication middleware.",
+        "Use requireClerkAuth on protected API resources and reconcile it deliberately with any existing JWT middleware.",
+        "Configure the same Clerk application used by the frontend; do not expose CLERK_SECRET_KEY to the browser."
+      ]
+    }
+  }
 }
