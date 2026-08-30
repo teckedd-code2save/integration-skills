@@ -1,4 +1,4 @@
 interface:
   display_name: "Compose TypeScript Integrations"
   short_description: "Install and verify maintained TypeScript integrations"
-  default_prompt: "Use $compose-typescript-integrations to add Clerk authentication to this TypeScript project."
+  default_prompt: "Use $compose-typescript-integrations to set up and verify the requested integration in this project."

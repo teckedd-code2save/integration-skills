@@ -2,6 +2,20 @@
 
 Use this recipe when adding Cloudflare R2 object storage to a TypeScript application. Start with one private bucket and the smallest access surface that supports the product.
 
+## Completion contract for agents
+
+When the user asks to set up, integrate, configure, repair, or finish R2, own the complete result. A one-line request is sufficient; do not ask the user to repeat the steps in this recipe.
+
+1. Locate the server application and its existing storage abstraction, routes, deployment configuration, tests, and object-ownership rules.
+2. Determine whether existing S3-compatible code is already a valid R2 implementation. Adapt it in place when practical; do not create a second storage path merely because the starter is available.
+3. Compose only the missing provider boundary and connect it to the real application call path.
+4. Use an authenticated Cloudflare connector when available. Otherwise use Wrangler or lead the exact dashboard flow. Reuse an identified bucket; create one only when needed.
+5. Put credentials directly into the repository's ignored local environment or connected deployment secret store. Never expose their values in chat, logs, source code, generated reports, or commits.
+6. Configure the exact browser origin in CORS when direct uploads are used, then verify authorization and object ownership in addition to storage connectivity.
+7. Run the repository's typecheck, tests, and build, followed by `doctor r2 --live` against the intended Cloudflare account and bucket.
+
+R2 is complete only when the application's real upload/download path is connected and the live temporary put/get/delete probe passes. Merely finding `S3Client`, generating files, adding environment-variable names, or reaching a login screen is not completion. If login or MFA is required, ask only for that action and continue afterward.
+
 Authoritative sources:
 
 - R2 API choices: https://developers.cloudflare.com/r2/api/

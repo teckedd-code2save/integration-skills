@@ -7,6 +7,16 @@ description: Compose maintained third-party capabilities into existing TypeScrip
 
 Add the requested capability to the existing application by composing the provider's maintained SDK, CLI, agent skill, and documentation. Use the bundled executable starters for Next.js App Router, Vite + React, and Express TypeScript applications, then refine them to fit the repository.
 
+## Own short outcome requests
+
+Treat instructions such as "set up R2", "add Clerk", or "finish Paystack" as requests to carry the integration from repository inspection through working verification. The user should not need to restate the workflow contained in this skill or its provider recipe.
+
+- Execute the inspection, implementation, adaptation, dependency installation, configuration checks, tests, and diagnostics yourself.
+- Use existing provider code as a starting point, not as evidence of completion. Prefer adapting the application's existing abstraction over adding a parallel implementation.
+- Use an available authenticated connector or provider CLI for account resources and deployment configuration. Ask the user only for an irreducibly human action such as login, MFA, billing acceptance, or entering a one-time secret directly into a secure field.
+- When a human action blocks progress, state the single exact action required and resume the workflow afterward. Do not turn the remaining agent work into instructions for the user.
+- Do not report the integration as complete until the provider-specific completion gate passes. If access prevents the gate, report it as blocked rather than complete.
+
 ## Route the request
 
 1. Inspect the project before changing it: framework and version, package manager, routing model, existing authentication or provider code, environment-file conventions, and available tests.
@@ -56,6 +66,8 @@ node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs doctor 
 ```
 
 `setup` reports missing configuration without printing secret values and gives the exact connector/CLI/dashboard path. Inspect the existing call path, configuration, authorization, ownership, failure handling, and tests before choosing whether to reuse it behind the generated facade or replace it. For R2, run `doctor r2 --live` after configuration; it performs a temporary put/get/delete round trip and removes its probe object.
+
+The setup report separates `agentActions`, `humanActions`, and `completionCriteria` when the provider has an executable completion contract. Perform every agent action. Surface a human action only when it is actually blocked on the user; its presence in the report is not a reason to stop early.
 
 The starters provide working provider boundaries, not product authorization or business rules. Connect their explicit callbacks to the application's authenticated user, order, ownership, and idempotency layers. Do not scaffold a browser-only provider into a server target or a server-only provider into a browser target; the command rejects those mismatches.
 

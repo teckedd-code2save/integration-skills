@@ -250,6 +250,9 @@ assert.match(
 const expressSetup = run("setup", "r2", "--target", expressFixture);
 assert.equal(expressSetup.integrations[0].status, "setup-required");
 assert.equal(expressSetup.integrations[0].existingSignals[0].integration, "r2");
+assert.ok(expressSetup.integrations[0].guide.agentActions.length >= 4);
+assert.ok(expressSetup.integrations[0].guide.humanActions.length >= 1);
+assert.ok(expressSetup.integrations[0].guide.completionCriteria.some((item) => /put\/get\/delete/.test(item)));
 const expressDoctor = run("doctor", "r2", "--target", expressFixture);
 assert.deepEqual(expressDoctor.probes, [
   { id: "r2", status: "not-run", detail: "pass --live after configuration" },

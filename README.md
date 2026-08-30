@@ -9,7 +9,7 @@ It combines provider SDKs and CLIs with executable TypeScript starters. The incl
 Give a coding agent this instruction from the root of a TypeScript project:
 
 ```text
-Install the compose-typescript-integrations skill from https://github.com/teckedd-code2save/integration-skills, then use it to add <capability> to this project. Inspect the existing stack, lead me through any account or key setup I must do, implement the integration, and verify it end to end.
+Install and use the compose-typescript-integrations skill from https://github.com/teckedd-code2save/integration-skills. Set up and verify <capability> in this project.
 ```
 
 Replace `<capability>` with a concrete request such as:
@@ -28,8 +28,10 @@ npx skills add teckedd-code2save/integration-skills --skill compose-typescript-i
 Then ask normally:
 
 ```text
-Use $compose-typescript-integrations to add Clerk Google and phone authentication to this application.
+Use $compose-typescript-integrations to set up and verify R2 here.
 ```
+
+That short outcome request is the intended interface. The skill makes the agent responsible for inspecting and adapting existing code, using available provider connectors, protecting secrets, completing project tests, and running the provider's verification gate. The agent should interrupt only for a genuinely human step such as login or MFA.
 
 The recommended command composes one or several integrations and records the choice for every later agent:
 

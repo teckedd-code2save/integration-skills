@@ -500,11 +500,26 @@ const setupGuides = {
   r2: {
     connector: "Cloudflare connector, Wrangler, or authenticated Cloudflare dashboard",
     dashboard: "https://dash.cloudflare.com/?to=/:account/r2",
-    steps: [
-      "Create or select a private R2 bucket in the application account.",
-      "Create a bucket-scoped Object Read & Write API token and store its S3 access key ID and secret outside git.",
+    agentActions: [
+      "Inspect and adapt the application's existing storage abstraction and real upload/download call path.",
+      "Use the Cloudflare connector, Wrangler, or dashboard to reuse or create one private bucket and a bucket-scoped Object Read & Write token.",
+      "Store credentials in the established ignored environment or deployment secret store without printing their values.",
       "Configure CORS for the exact frontend origins, methods, and Content-Type header used by browser uploads.",
-      "Run doctor r2 --live to put, read, and delete a temporary probe object before calling the integration complete.",
+      "Run project checks and doctor r2 --live against the intended account and bucket.",
+    ],
+    humanActions: [
+      "Complete Cloudflare login, MFA, billing acceptance, or one-time secret entry only when the chosen account flow requires it.",
+    ],
+    completionCriteria: [
+      "The application's real storage path uses the intended R2 bucket with authorization and ownership enforced.",
+      "Project typecheck, relevant tests, and build pass.",
+      "A live temporary object put/get/delete round trip passes and cleans up its probe object.",
+    ],
+    steps: [
+      "Agent: inspect and adapt the existing storage path instead of adding a parallel implementation.",
+      "Agent: create or select the private bucket, configure scoped credentials and exact CORS, and connect deployment secrets.",
+      "Human only if blocked: complete Cloudflare login, MFA, billing acceptance, or direct one-time secret entry.",
+      "Agent: run project checks and doctor r2 --live; do not call the integration complete until both pass.",
     ],
   },
   mapbox: {
@@ -737,7 +752,13 @@ if (options.command === "setup") {
       for (const signal of item.existingSignals) console.log(`  probe      ${signal.evidence}${signal.path ? ` (${signal.path})` : ""}`);
       console.log(`  use        ${item.guide.connector}`);
       console.log(`  open       ${item.guide.dashboard}`);
-      item.guide.steps.forEach((step, index) => console.log(`  ${index + 1}. ${step}`));
+      if (item.guide.agentActions) {
+        item.guide.agentActions.forEach((step) => console.log(`  agent      ${step}`));
+        item.guide.humanActions.forEach((step) => console.log(`  human      ${step}`));
+        item.guide.completionCriteria.forEach((step) => console.log(`  done when  ${step}`));
+      } else {
+        item.guide.steps.forEach((step, index) => console.log(`  ${index + 1}. ${step}`));
+      }
     }
   }
   process.exit(0);
@@ -805,7 +826,13 @@ else {
     for (const signal of item.existingSignals) console.log(`  inspect    ${signal.evidence}${signal.path ? ` (${signal.path})` : ""}`);
     console.log(`  use        ${item.guide.connector}`);
     console.log(`  open       ${item.guide.dashboard}`);
-    item.guide.steps.forEach((step, index) => console.log(`  ${index + 1}. ${step}`));
+    if (item.guide.agentActions) {
+      item.guide.agentActions.forEach((step) => console.log(`  agent      ${step}`));
+      item.guide.humanActions.forEach((step) => console.log(`  human      ${step}`));
+      item.guide.completionCriteria.forEach((step) => console.log(`  done when  ${step}`));
+    } else {
+      item.guide.steps.forEach((step, index) => console.log(`  ${index + 1}. ${step}`));
+    }
   }
   console.log(`\nRun diagnostics:\n  node ${relative(process.cwd(), fileURLToPath(import.meta.url))} doctor ${selectedIds.join(" ")} --target ${relative(process.cwd(), options.target) || "."}`);
   if (!options.install && dependencies.length > 0) {
