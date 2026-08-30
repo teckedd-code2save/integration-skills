@@ -31,7 +31,7 @@ Then ask normally:
 Use $compose-typescript-integrations to set up and verify R2 here.
 ```
 
-That short outcome request is the intended interface. The skill makes the agent responsible for inspecting and adapting existing code, using available provider connectors, protecting secrets, completing project tests, and running the provider's verification gate. The agent should interrupt only for a genuinely human step such as login or MFA.
+That short outcome request is the intended interface for Clerk, Paystack, R2, and Mapbox. Each provider exposes the same agent actions, human-only actions, and completion criteria. The skill makes the agent responsible for inspecting and adapting existing code, using available provider connectors, protecting secrets, completing project tests, and running the provider's verification gate. The agent should interrupt only for a genuinely human step such as login or MFA.
 
 The recommended command composes one or several integrations and records the choice for every later agent:
 

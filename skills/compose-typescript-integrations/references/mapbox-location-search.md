@@ -2,6 +2,18 @@
 
 Use this recipe when adding a map, address/place search, reverse geocoding, directions, or related location functionality to a TypeScript web application. Compose Mapbox's official skills and tools rather than duplicating their framework patterns.
 
+## Completion contract for agents
+
+When the user asks to set up, integrate, configure, migrate, repair, or finish Mapbox, own the result from provider discovery through live behavior verification. A one-line request is sufficient.
+
+1. Inspect the existing location provider, product flow, stored location shape, target geography, rendering model, and privacy expectations. Make any provider migration explicit and reuse a sound application boundary.
+2. Choose only the requested Mapbox capability and connect it to the application's real UI and persistence path rather than leaving a demo component.
+3. Use the Mapbox DevKit connector or authenticated dashboard to create the smallest suitable token and restrict it to exact development and production origins.
+4. Verify live API behavior for the requested map, search, geocoding, or routing flow, including coordinate order, selection persistence, loading and error states, keyboard use, and location denial when relevant.
+5. Run the repository's typecheck, relevant tests, and build.
+
+Mapbox is complete only when the requested live product flow works on an intended origin with the correctly scoped token. A rendered empty map, generated component, configured variable name, or mocked result alone is not completion. Ask the user only for login, MFA, billing acknowledgement, or another genuinely human account decision, then continue.
+
 Authoritative sources:
 
 - Mapbox agent skills: https://docs.mapbox.com/api/guides/mapbox-agent-skills/

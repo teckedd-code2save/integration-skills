@@ -480,21 +480,37 @@ const setupGuides = {
   clerk: {
     connector: "Clerk CLI or authenticated Clerk dashboard",
     dashboard: "https://dashboard.clerk.com/",
-    steps: [
-      "Create or select one Clerk application for both the frontend and backend.",
-      "Enable only the requested sign-in methods (for example Google and phone OTP).",
-      "Store publishable keys in the web environment and secret keys only in the server secret store.",
-      "Run the official Clerk doctor and exercise sign-in, protected API access, and sign-out.",
+    agentActions: [
+      "Inspect existing authentication, user records, roles, sessions, and protected routes before choosing an additive setup or migration.",
+      "Use Clerk's maintained CLI, skills, or authenticated dashboard to create or link one application and enable only the requested sign-in methods.",
+      "Store the publishable key in the matching web environment and the secret key only in the server or deployment secret store.",
+      "Connect Clerk identity to the application's real authorization and user model, then run Clerk doctor and project checks.",
+    ],
+    humanActions: [
+      "Complete Clerk or social-provider login, MFA, consent, production OAuth credential entry, or billing acceptance only when required.",
+    ],
+    completionCriteria: [
+      "Every requested sign-in method completes against the intended Clerk application.",
+      "Signed-out access is rejected on a real protected path, server identity and authorization work, and sign-out removes access.",
+      "Any existing-user or role migration is explicitly resolved and project typecheck, relevant tests, and build pass.",
     ],
   },
   paystack: {
     connector: "Paystack dashboard",
     dashboard: "https://dashboard.paystack.com/#/settings/developer",
-    steps: [
-      "Start with test keys and store the secret key only on the server.",
-      "Register the exact HTTPS webhook URL and retain the raw request body for signature checks.",
-      "Run a test card or Ghana mobile-money flow, verify the transaction server-side, and replay the webhook to prove idempotency.",
-      "Promote to live keys only after the test path and operational alerts pass.",
+    agentActions: [
+      "Inspect and adapt the existing order, payment, verification, webhook, and fulfillment path instead of adding a competing flow.",
+      "Configure a server-only test key and the exact HTTPS webhook URL, retaining the raw request body for signature verification.",
+      "Resolve amount, currency, customer, and reference from trusted server state and make fulfillment idempotent.",
+      "Run a real Paystack test transaction, server verification, forged-signature test, and valid-webhook replay before project checks.",
+    ],
+    humanActions: [
+      "Complete Paystack login, MFA, business verification, settlement or legal details, and authorize any live low-value payment or production promotion.",
+    ],
+    completionCriteria: [
+      "An authorized test checkout succeeds while browser amount tampering and unauthorized initialization are rejected.",
+      "Server verification and a valid signed webhook reach one idempotent completion path; forged or replayed events cannot duplicate fulfillment.",
+      "Project typecheck, relevant tests, and build pass, with test-mode completion distinguished from live readiness.",
     ],
   },
   r2: {
@@ -515,20 +531,23 @@ const setupGuides = {
       "Project typecheck, relevant tests, and build pass.",
       "A live temporary object put/get/delete round trip passes and cleans up its probe object.",
     ],
-    steps: [
-      "Agent: inspect and adapt the existing storage path instead of adding a parallel implementation.",
-      "Agent: create or select the private bucket, configure scoped credentials and exact CORS, and connect deployment secrets.",
-      "Human only if blocked: complete Cloudflare login, MFA, billing acceptance, or direct one-time secret entry.",
-      "Agent: run project checks and doctor r2 --live; do not call the integration complete until both pass.",
-    ],
   },
   mapbox: {
-    connector: "Mapbox account dashboard",
+    connector: "Mapbox DevKit connector or authenticated Mapbox dashboard",
     dashboard: "https://account.mapbox.com/access-tokens/",
-    steps: [
-      "Create a public token with only the scopes needed for maps and search.",
-      "Restrict the token to the exact development and production URLs.",
-      "Store it in the framework's public environment variable and test search, selection, longitude/latitude order, and denied-token behavior.",
+    agentActions: [
+      "Inspect existing location providers and determine whether this is an additive capability or an explicit provider migration.",
+      "Choose the smallest requested Mapbox capability and integrate it into the application's real UI and persistence path.",
+      "Use the Mapbox DevKit connector or dashboard to create a minimally scoped token restricted to exact development and production URLs.",
+      "Exercise live search or map behavior, coordinate order, selection persistence, denial and error states, then run project checks.",
+    ],
+    humanActions: [
+      "Complete Mapbox login, MFA, billing acknowledgement, or other account decisions only when required.",
+    ],
+    completionCriteria: [
+      "The requested map, search, geocoding, or routing flow works against the live Mapbox API on an intended origin.",
+      "Selection data and longitude/latitude order remain correct, and token, loading, error, keyboard, and location-denial behavior are verified.",
+      "The token is restricted appropriately and project typecheck, relevant tests, and build pass.",
     ],
   },
 };
@@ -752,13 +771,9 @@ if (options.command === "setup") {
       for (const signal of item.existingSignals) console.log(`  probe      ${signal.evidence}${signal.path ? ` (${signal.path})` : ""}`);
       console.log(`  use        ${item.guide.connector}`);
       console.log(`  open       ${item.guide.dashboard}`);
-      if (item.guide.agentActions) {
-        item.guide.agentActions.forEach((step) => console.log(`  agent      ${step}`));
-        item.guide.humanActions.forEach((step) => console.log(`  human      ${step}`));
-        item.guide.completionCriteria.forEach((step) => console.log(`  done when  ${step}`));
-      } else {
-        item.guide.steps.forEach((step, index) => console.log(`  ${index + 1}. ${step}`));
-      }
+      item.guide.agentActions.forEach((step) => console.log(`  agent      ${step}`));
+      item.guide.humanActions.forEach((step) => console.log(`  human      ${step}`));
+      item.guide.completionCriteria.forEach((step) => console.log(`  done when  ${step}`));
     }
   }
   process.exit(0);
@@ -826,13 +841,9 @@ else {
     for (const signal of item.existingSignals) console.log(`  inspect    ${signal.evidence}${signal.path ? ` (${signal.path})` : ""}`);
     console.log(`  use        ${item.guide.connector}`);
     console.log(`  open       ${item.guide.dashboard}`);
-    if (item.guide.agentActions) {
-      item.guide.agentActions.forEach((step) => console.log(`  agent      ${step}`));
-      item.guide.humanActions.forEach((step) => console.log(`  human      ${step}`));
-      item.guide.completionCriteria.forEach((step) => console.log(`  done when  ${step}`));
-    } else {
-      item.guide.steps.forEach((step, index) => console.log(`  ${index + 1}. ${step}`));
-    }
+    item.guide.agentActions.forEach((step) => console.log(`  agent      ${step}`));
+    item.guide.humanActions.forEach((step) => console.log(`  human      ${step}`));
+    item.guide.completionCriteria.forEach((step) => console.log(`  done when  ${step}`));
   }
   console.log(`\nRun diagnostics:\n  node ${relative(process.cwd(), fileURLToPath(import.meta.url))} doctor ${selectedIds.join(" ")} --target ${relative(process.cwd(), options.target) || "."}`);
   if (!options.install && dependencies.length > 0) {

@@ -2,6 +2,18 @@
 
 Use this recipe when the user wants Clerk authentication in a TypeScript application. Clerk maintains its own CLI and agent skills, so compose those upstream tools instead of maintaining duplicate framework snippets here.
 
+## Completion contract for agents
+
+When the user asks to set up, integrate, configure, repair, migrate, or finish Clerk, own the result from existing-auth discovery through verification. A one-line request is sufficient.
+
+1. Inspect the current session, user, role, middleware, protected-route, and account-recovery paths. If another auth system exists, identify how existing identities and authorization data will map before replacing it.
+2. Use Clerk's maintained CLI, skills, connector, or authenticated dashboard to create or link one application and enable only the requested methods.
+3. Store keys in the correct browser/server environments without revealing secrets, and ensure every participating frontend and backend points to the same Clerk instance.
+4. Connect Clerk to the application's real user and authorization model. Do not stop at generated sign-in pages or provider wrappers.
+5. Exercise each requested login method, one signed-out rejection, server-side identity and authorization, sign-out, and the repository's checks.
+
+Clerk is complete only when each requested authentication method works against the intended instance and a real protected application path enforces it. Package installation, generated pages, configured variable names, or a successful login alone do not prove authorization or migration. Ask the user only for login, MFA, production OAuth credentials, consent, or another genuinely human account action, then continue.
+
 Authoritative sources:
 
 - Clerk CLI: https://clerk.com/docs/cli

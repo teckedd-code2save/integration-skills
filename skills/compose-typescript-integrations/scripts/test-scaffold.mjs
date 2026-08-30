@@ -189,6 +189,11 @@ assert.deepEqual(
   ["setup-required", "setup-required"],
 );
 assert.match(viteSetup.integrations[0].guide.dashboard, /clerk/);
+for (const integration of viteSetup.integrations) {
+  assert.ok(integration.guide.agentActions.length >= 4);
+  assert.ok(integration.guide.humanActions.length >= 1);
+  assert.ok(integration.guide.completionCriteria.length >= 3);
+}
 writeFileSync(
   join(viteFixture, "tsconfig.json"),
   JSON.stringify(
@@ -247,12 +252,16 @@ assert.match(
   readFileSync(join(expressFixture, "src", "integrations", "server.ts"), "utf8"),
   /createPaymentInitializeHandler/,
 );
-const expressSetup = run("setup", "r2", "--target", expressFixture);
-assert.equal(expressSetup.integrations[0].status, "setup-required");
-assert.equal(expressSetup.integrations[0].existingSignals[0].integration, "r2");
-assert.ok(expressSetup.integrations[0].guide.agentActions.length >= 4);
-assert.ok(expressSetup.integrations[0].guide.humanActions.length >= 1);
-assert.ok(expressSetup.integrations[0].guide.completionCriteria.some((item) => /put\/get\/delete/.test(item)));
+const expressSetup = run("setup", "clerk", "paystack", "r2", "--target", expressFixture);
+assert.ok(expressSetup.integrations.every((integration) => integration.status === "setup-required"));
+for (const integration of expressSetup.integrations) {
+  assert.ok(integration.guide.agentActions.length >= 4);
+  assert.ok(integration.guide.humanActions.length >= 1);
+  assert.ok(integration.guide.completionCriteria.length >= 3);
+}
+const r2Setup = expressSetup.integrations.find((integration) => integration.id === "r2");
+assert.equal(r2Setup.existingSignals[0].integration, "r2");
+assert.ok(r2Setup.guide.completionCriteria.some((item) => /put\/get\/delete/.test(item)));
 const expressDoctor = run("doctor", "r2", "--target", expressFixture);
 assert.deepEqual(expressDoctor.probes, [
   { id: "r2", status: "not-run", detail: "pass --live after configuration" },

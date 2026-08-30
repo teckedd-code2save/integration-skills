@@ -2,6 +2,18 @@
 
 Use this recipe when adding Paystack payment collection to a TypeScript application. Default to a small one-time-payment integration unless the user explicitly asks for subscriptions, transfers, split payments, or direct mobile-money charging.
 
+## Completion contract for agents
+
+When the user asks to set up, integrate, configure, repair, or finish Paystack, own the complete test-mode payment path. A one-line request is sufficient.
+
+1. Inspect the existing order, amount calculation, payment attempt, verification, webhook, idempotency, fulfillment, and reconciliation code. Adapt a sound existing boundary instead of adding a competing payment flow.
+2. Configure the test account, server-only key, callback, and exact public HTTPS webhook using an available connector or authenticated dashboard.
+3. Connect initialization to authenticated, server-owned order state; persist the reference before redirect; and route verification and signed webhooks through one durable idempotent completion service.
+4. Exercise an unauthorized request, browser amount tampering, a real test card or requested Ghana mobile-money transaction, server verification, forged signature rejection, and valid webhook replay.
+5. Run the repository's typecheck, relevant tests, and build. Keep production activation separate unless the user explicitly requested and authorized it.
+
+Paystack test-mode setup is complete only when a real test transaction is confirmed server-side without trusting the browser and webhook replay cannot duplicate fulfillment. SDK presence, environment-variable names, checkout redirection, or callback arrival alone are not completion. Ask the user only for login, MFA, business or settlement verification, legal acceptance, or authorization of a live low-value payment and production promotion.
+
 Authoritative sources:
 
 - Accept payments: https://paystack.com/docs/payments/accept-payments/

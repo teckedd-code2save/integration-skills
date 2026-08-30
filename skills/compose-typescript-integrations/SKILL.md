@@ -67,7 +67,7 @@ node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs doctor 
 
 `setup` reports missing configuration without printing secret values and gives the exact connector/CLI/dashboard path. Inspect the existing call path, configuration, authorization, ownership, failure handling, and tests before choosing whether to reuse it behind the generated facade or replace it. For R2, run `doctor r2 --live` after configuration; it performs a temporary put/get/delete round trip and removes its probe object.
 
-The setup report separates `agentActions`, `humanActions`, and `completionCriteria` when the provider has an executable completion contract. Perform every agent action. Surface a human action only when it is actually blocked on the user; its presence in the report is not a reason to stop early.
+Every provider setup report separates `agentActions`, `humanActions`, and `completionCriteria`. Perform every agent action. Surface a human action only when it is actually blocked on the user; its presence in the report is not a reason to stop early.
 
 The starters provide working provider boundaries, not product authorization or business rules. Connect their explicit callbacks to the application's authenticated user, order, ownership, and idempotency layers. Do not scaffold a browser-only provider into a server target or a server-only provider into a browser target; the command rejects those mismatches.
 
