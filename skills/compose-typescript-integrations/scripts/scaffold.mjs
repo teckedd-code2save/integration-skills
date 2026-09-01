@@ -35,6 +35,7 @@ function parseArgs(argv) {
     dryRun: false,
     json: false,
     live: false,
+    executionMode: undefined,
   };
 
   for (let index = 1; index < argv.length; index += 1) {
@@ -45,11 +46,15 @@ function parseArgs(argv) {
     else if (value === "--dry-run") options.dryRun = true;
     else if (value === "--json") options.json = true;
     else if (value === "--live") options.live = true;
+    else if (value === "--mode") options.executionMode = argv[++index];
     else if (value.startsWith("--")) fail(`unknown option ${value}`);
     else options.recipes.push(value);
   }
 
   options.target = resolve(options.target);
+  if (options.executionMode && !["auto", "interactive"].includes(options.executionMode)) {
+    fail("--mode must be auto or interactive");
+  }
   return options;
 }
 
@@ -276,28 +281,68 @@ function sameText(path, content) {
   return existsSync(path) && readFileSync(path, "utf8") === content;
 }
 
-function selectedFromConfig(target) {
+function readCompositionConfig(target, required = true) {
   const configPath = join(target, compositionConfigName);
   if (!existsSync(configPath)) {
+    if (!required) return null;
     fail(`no ${compositionConfigName} found; pass integrations to the compose command first`);
   }
   const config = readJson(configPath);
   if (config.managedBy !== compositionOwner || config.version !== 1) {
     fail(`${compositionConfigName} is not a supported ${compositionOwner} manifest`);
   }
+  return config;
+}
+
+function selectedFromConfig(target) {
+  const config = readCompositionConfig(target);
   if (!Array.isArray(config.integrations) || config.integrations.length === 0) {
     fail(`${compositionConfigName} must contain at least one integration`);
   }
   return config.integrations;
 }
 
-function compositionConfig(ids) {
-  return `${JSON.stringify({ managedBy: compositionOwner, version: 1, integrations: ids }, null, 2)}\n`;
+function resolveExecutionMode(target, requestedMode) {
+  const config = readCompositionConfig(target, false);
+  const persistedMode = config?.executionMode;
+  if (persistedMode !== undefined && !["auto", "interactive"].includes(persistedMode)) {
+    fail(`${compositionConfigName} contains an unsupported executionMode`);
+  }
+  const executionMode = requestedMode ?? persistedMode;
+  if (!executionMode) {
+    fail("setup mode is not selected; ask the user to choose auto or interactive, then pass --mode auto or --mode interactive");
+  }
+  return { executionMode };
+}
+
+function executionModeContract(executionMode, persisted) {
+  return {
+    value: executionMode,
+    persisted,
+    behavior: executionMode === "auto"
+      ? "Perform safe setup, connector, configuration, and verification work automatically; pause only for required access or human approval."
+      : "Walk through external and account configuration step by step; ask before each external mutation or consequential choice.",
+    alwaysAskFor: [
+      "account access, login, or MFA that the agent cannot complete",
+      "secret entry when no connected secure field or secret store is available",
+      "billing, paid commitments, legal terms, production promotion, or destructive actions",
+      "permissions or provider mutations that require explicit user approval",
+    ],
+  };
+}
+
+function compositionConfig(ids, executionMode) {
+  return `${JSON.stringify({
+    managedBy: compositionOwner,
+    version: 1,
+    executionMode,
+    integrations: ids,
+  }, null, 2)}\n`;
 }
 
 function writeCompositionConfig(target, ids, options) {
   const path = join(target, compositionConfigName);
-  const content = compositionConfig(ids);
+  const content = compositionConfig(ids, options.executionMode);
   if (sameText(path, content)) return { path: compositionConfigName, status: "unchanged" };
   const existed = existsSync(path);
   if (existed) {
@@ -308,6 +353,16 @@ function writeCompositionConfig(target, ids, options) {
   }
   if (!options.dryRun) writeFileSync(path, content);
   return { path: compositionConfigName, status: existed ? "updated" : "created" };
+}
+
+function persistExecutionMode(target, executionMode, dryRun) {
+  const path = join(target, compositionConfigName);
+  const config = readCompositionConfig(target, false);
+  if (!config || config.executionMode === executionMode) return false;
+  if (!dryRun) {
+    writeFileSync(path, `${JSON.stringify({ ...config, executionMode }, null, 2)}\n`);
+  }
+  return !dryRun;
 }
 
 function managedCompositionFile(target, path, content, options) {
@@ -1001,8 +1056,16 @@ if (
   (["add", "setup", "doctor"].includes(options.command) && options.recipes.length === 0)
 ) {
   fail(
-    "usage: scaffold.mjs list | inspect --target DIR | setup <provider>... | doctor <provider>... [--live] | add <provider>... | compose [provider]... [--target DIR] [--install] [--dry-run] [--force] [--json]",
+    "usage: scaffold.mjs list | inspect --target DIR | setup <provider>... | doctor <provider>... [--live] | add <provider>... | compose [provider]... [--target DIR] [--mode auto|interactive] [--install] [--dry-run] [--force] [--json]",
   );
+}
+
+const requestedExecutionMode = options.executionMode;
+const modeResolution = options.command === "add"
+  ? null
+  : resolveExecutionMode(options.target, requestedExecutionMode);
+if (modeResolution) {
+  options.executionMode = modeResolution.executionMode;
 }
 
 let selectedIds = [...new Set(
@@ -1026,15 +1089,24 @@ const selected = selectedIds.map((id) => {
   return recipe;
 });
 
+if (["setup", "doctor"].includes(options.command) && requestedExecutionMode) {
+  persistExecutionMode(options.target, options.executionMode, options.dryRun);
+}
+
 if (options.command === "setup") {
+  const persistedMode = readCompositionConfig(options.target, false)?.executionMode === options.executionMode;
   const report = {
     target: options.target,
     framework: context.framework,
+    executionMode: executionModeContract(options.executionMode, persistedMode),
     integrations: configurationReport(selected, context, options.target),
   };
   if (options.json) console.log(JSON.stringify(report, null, 2));
   else {
     console.log(`Setup walkthrough for ${context.framework}`);
+    console.log(`Execution mode: ${report.executionMode.value}`);
+    console.log(`  behavior   ${report.executionMode.behavior}`);
+    report.executionMode.alwaysAskFor.forEach((step) => console.log(`  ask        ${step}`));
     for (const item of report.integrations) {
       console.log(`\n${item.name}: ${item.status}`);
       if (item.configured.length > 0) console.log(`  configured ${item.configured.join(", ")}`);
@@ -1052,9 +1124,14 @@ if (options.command === "setup") {
 
 if (options.command === "doctor") {
   const report = await doctorReport(selected, context, options.target, options.live);
+  report.executionMode = executionModeContract(
+    options.executionMode,
+    readCompositionConfig(options.target, false)?.executionMode === options.executionMode,
+  );
   if (options.json) console.log(JSON.stringify(report, null, 2));
   else {
     console.log(`Integration doctor for ${context.framework}`);
+    console.log(`Execution mode: ${report.executionMode.value}`);
     for (const item of report.configuration) {
       console.log(`\n${item.name}: ${item.status}`);
       if (item.missing.length > 0) console.log(`  missing    ${item.missing.join(", ")}`);
@@ -1086,6 +1163,12 @@ const setup = configurationReport(selected, context, options.target);
 const output = {
   target: options.target,
   framework: context.framework,
+  ...(modeResolution ? {
+    executionMode: executionModeContract(
+      options.executionMode,
+      !options.dryRun && readCompositionConfig(options.target, false)?.executionMode === options.executionMode,
+    ),
+  } : {}),
   existingIntegrationSignals: context.signals,
   dryRun: options.dryRun,
   dependencies,
@@ -1102,6 +1185,7 @@ else {
   }
   if (composition) {
     console.log(`\nComposition manifest\n  ${composition.config.status.padEnd(10)} ${composition.config.path}`);
+    console.log(`  mode       ${output.executionMode.value}`);
     for (const file of composition.files) console.log(`  ${file.status.padEnd(10)} ${file.path}`);
   }
   for (const result of results) printResult(result);

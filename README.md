@@ -33,26 +33,28 @@ Then ask normally:
 Use $compose-typescript-integrations to set up and verify R2 here.
 ```
 
-That short outcome request is the intended interface for every recipe. Each provider exposes the same agent actions, human-only actions, and completion criteria. The skill makes the agent responsible for inspecting and adapting existing code, using available provider connectors, protecting secrets, completing project tests, and running the provider's verification gate. The agent should interrupt only for a genuinely human step such as login or MFA.
+That short outcome request is the intended interface for every recipe. On first use, the agent asks one question: **Auto (recommended)** or **Interactive** setup. Auto performs safe agent-capable work and pauses only for required access or approval. Interactive walks through external configuration step by step and asks before making external changes. The choice is stored for every integration in that application, so later agents do not ask again.
+
+Each provider exposes the same agent actions, human-only actions, and completion criteria. The skill makes the agent responsible for inspecting and adapting existing code, using available provider connectors, protecting secrets, completing project tests, and running the provider's verification gate. In either mode it asks at the point where login, MFA, secure secret entry, billing/legal acceptance, a paid commitment, production promotion, a destructive action, or explicit provider permission is actually required.
 
 The recommended command composes one or several integrations and records the choice for every later agent:
 
 ```bash
 node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs list
 node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs inspect --target .
-node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose google-auth linkedin-auth telegram-auth paystack r2 google-maps routing-eta --target . --install
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose google-auth linkedin-auth telegram-auth paystack r2 google-maps routing-eta --target . --mode auto --install
 ```
 
 For a frontend/backend monorepo, target each application workspace independently. For example:
 
 ```bash
-node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose clerk mapbox r2 --target apps/web --install
-node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose clerk paystack r2 --target apps/api --install
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose clerk mapbox r2 --target apps/web --mode auto --install
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose clerk paystack r2 --target apps/api --mode auto --install
 ```
 
 The command rejects providers that do not belong on that target—for example, Paystack server code on a Vite browser app. `inspect` also surfaces SDK evidence for integrations that may already exist so the agent can preserve and adapt them.
 
-That creates `integrations.config.json` plus consistent application imports:
+That creates `integrations.config.json` with the selected `executionMode` plus consistent application imports:
 
 ```ts
 import {

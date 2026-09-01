@@ -28,8 +28,14 @@ writeFileSync(
   JSON.stringify({ private: true, dependencies: { next: "^16.0.0" } }, null, 2),
 );
 
-const run = (...args) =>
+const runRaw = (...args) =>
   JSON.parse(execFileSync(process.execPath, [script, ...args, "--json"], { encoding: "utf8" }));
+const run = (...args) => {
+  const effectiveArgs = args[0] === "compose" && !args.includes("--mode")
+    ? [...args, "--mode", "auto"]
+    : args;
+  return runRaw(...effectiveArgs);
+};
 
 const first = run("add", "clerk", "paystack", "r2", "mapbox", "--target", fixture);
 assert.equal(first.framework, "nextjs-16-app-router");
@@ -60,6 +66,15 @@ assert.ok(second.results.every((result) => result.unchanged.length > 0));
 assert.match(env, /^NEXT_PUBLIC_CLERK_SIGN_IN_URL=\/sign-in$/m);
 assert.match(env, /^NEXT_PUBLIC_CLERK_SIGN_UP_URL=\/sign-up$/m);
 
+assert.throws(
+  () => runRaw("compose", "clerk", "--target", fixture),
+  /ask the user to choose auto or interactive/,
+);
+assert.throws(
+  () => runRaw("compose", "clerk", "--target", fixture, "--mode", "automatic"),
+  /--mode must be auto or interactive/,
+);
+
 const composed = run(
   "compose",
   "clerk",
@@ -74,8 +89,11 @@ assert.ok(composed.composition.files.every((file) => file.status === "created"))
 assert.deepEqual(readFileSync(join(fixture, "integrations.config.json"), "utf8"), `${JSON.stringify({
   managedBy: "compose-typescript-integrations",
   version: 1,
+  executionMode: "auto",
   integrations: ["clerk", "paystack", "r2", "mapbox"],
 }, null, 2)}\n`);
+assert.equal(composed.executionMode.value, "auto");
+assert.equal(composed.executionMode.persisted, true);
 assert.match(
   readFileSync(join(fixture, "src", "integrations", "server.ts"), "utf8"),
   /createPaymentInitializeRoute/,
@@ -84,9 +102,22 @@ assert.match(
   readFileSync(join(fixture, "src", "integrations", "client", "location.ts"), "utf8"),
   /LocationPicker/,
 );
-const replay = run("compose", "--target", fixture);
+const replay = runRaw("compose", "--target", fixture);
 assert.equal(replay.composition.config.status, "unchanged");
 assert.ok(replay.composition.files.every((file) => file.status === "unchanged"));
+assert.equal(replay.executionMode.value, "auto");
+
+const interactiveSetup = runRaw("setup", "r2", "--target", fixture, "--mode", "interactive");
+assert.equal(interactiveSetup.executionMode.value, "interactive");
+assert.equal(interactiveSetup.executionMode.persisted, true);
+assert.match(interactiveSetup.executionMode.behavior, /step by step/);
+assert.ok(interactiveSetup.executionMode.alwaysAskFor.some((item) => /billing/.test(item)));
+assert.equal(
+  JSON.parse(readFileSync(join(fixture, "integrations.config.json"), "utf8")).executionMode,
+  "interactive",
+);
+const interactiveReplay = runRaw("setup", "r2", "--target", fixture);
+assert.equal(interactiveReplay.executionMode.value, "interactive");
 
 const serverFacadePath = join(fixture, "src", "integrations", "server.ts");
 const generatedServerFacade = readFileSync(serverFacadePath, "utf8");
@@ -98,6 +129,23 @@ assert.deepEqual(
 );
 assert.equal(readFileSync(serverFacadePath, "utf8"), "user-owned\n");
 writeFileSync(serverFacadePath, generatedServerFacade);
+
+for (const id of [
+  "clerk",
+  "google-auth",
+  "linkedin-auth",
+  "telegram-auth",
+  "oidc",
+  "paystack",
+  "r2",
+  "mapbox",
+  "google-maps",
+  "routing-eta",
+]) {
+  const report = runRaw("setup", id, "--target", fixture);
+  assert.equal(report.executionMode.value, "auto", `${id} should inherit the global setup mode`);
+  assert.ok(report.integrations.some((integration) => integration.id === id));
+}
 
 const paystackClientPath = join(fixture, "src", "integrations", "paystack", "client.ts");
 const generatedPaystackClient = readFileSync(paystackClientPath, "utf8");

@@ -17,6 +17,16 @@ Treat instructions such as "set up R2", "add Clerk", or "finish Paystack" as req
 - When a human action blocks progress, state the single exact action required and resume the workflow afterward. Do not turn the remaining agent work into instructions for the user.
 - Do not report the integration as complete until the provider-specific completion gate passes. If access prevents the gate, report it as blocked rather than complete.
 
+## Choose the setup mode once
+
+Before the first setup action, read `integrations.config.json`. If `executionMode` is absent, ask whether the user wants **Auto (recommended)** or **Interactive** setup using the exact short choice in [references/setup-modes.md](references/setup-modes.md). Pass the answer to `compose` with `--mode auto` or `--mode interactive`; the manifest persists it for every integration and later agent. Do not ask again when a valid mode is already recorded unless the user asks to change it.
+
+- In Auto mode, perform all safe agent-capable work and pause only for required access, login/MFA, approval, secure secret entry, billing/legal/paid commitments, production promotion, or destructive actions.
+- In Interactive mode, inspect locally, then walk through external/account configuration and ask before each external mutation or consequential choice.
+- In both modes, request the exact missing access or approval at the point it is needed, use the connector or official CLI after it is granted, and resume the workflow. A mode never grants additional authority or permits secrets in chat.
+
+Apply this contract to every provider recipe, not only maps or routing. Read [references/setup-modes.md](references/setup-modes.md) for the full action boundaries and command behavior.
+
 ## Route the request
 
 1. Inspect the project before changing it: framework and version, package manager, routing model, existing authentication or provider code, environment-file conventions, and available tests.
@@ -42,7 +52,7 @@ node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs inspect
 Run `compose` against one application target. In a monorepo, run it separately against the web and server workspaces. It records the selected providers in each target's `integrations.config.json`, installs the matching starters, and generates stable application-owned facades:
 
 ```bash
-node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose <clerk|google-auth|linkedin-auth|telegram-auth|oidc|paystack|r2|mapbox|google-maps|routing-eta>... --target . --install
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose <clerk|google-auth|linkedin-auth|telegram-auth|oidc|paystack|r2|mapbox|google-maps|routing-eta>... --target . --mode <auto|interactive> --install
 ```
 
 Subsequent agents can reproduce or repair the declared composition without restating providers:
@@ -69,6 +79,8 @@ node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs doctor 
 ```
 
 `setup` reports missing configuration without printing secret values and gives the exact connector/CLI/dashboard path. Inspect the existing call path, configuration, authorization, ownership, failure handling, and tests before choosing whether to reuse it behind the generated facade or replace it. For R2, run `doctor r2 --live` after configuration; it performs a temporary put/get/delete round trip and removes its probe object. For routing, `doctor routing-eta --live` makes one traffic-aware Accra route request and checks for a usable distance and duration without printing the credential.
+
+If no setup mode has been persisted, `compose`, `setup`, and `doctor` stop with an instruction to ask the first-run Auto/Interactive question. Their JSON output includes the active global mode, behavior, persistence state, and actions that always require access or approval.
 
 Every provider setup report separates `agentActions`, `humanActions`, and `completionCriteria`. Perform every agent action. Surface a human action only when it is actually blocked on the user; its presence in the report is not a reason to stop early.
 
