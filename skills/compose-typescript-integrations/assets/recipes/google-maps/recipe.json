@@ -1,0 +1,34 @@
+{
+  "id": "google-maps",
+  "name": "Google Maps and Places location search",
+  "dependencies": ["@googlemaps/js-api-loader", "@types/google.maps"],
+  "env": [
+    "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY",
+    { "name": "NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID", "value": "DEMO_MAP_ID", "optional": true }
+  ],
+  "files": [
+    { "source": "location-picker.tsx", "destination": "{{src}}/components/google-maps-location-picker.tsx" }
+  ],
+  "manualSteps": [
+    "Enable Maps JavaScript API and Places API (New) in one billing-enabled Google Cloud project.",
+    "Restrict the browser API key to exact application referrers and only the enabled Maps APIs.",
+    "Replace DEMO_MAP_ID before production and persist place ID, longitude, and latitude after user confirmation."
+  ],
+  "variants": {
+    "vite-react": {
+      "dependencies": ["@googlemaps/js-api-loader", "@types/google.maps"],
+      "env": [
+        "VITE_GOOGLE_MAPS_API_KEY",
+        { "name": "VITE_GOOGLE_MAPS_MAP_ID", "value": "DEMO_MAP_ID", "optional": true }
+      ],
+      "files": [
+        { "source": "vite-location-picker.tsx", "destination": "{{src}}/components/google-maps-location-picker.tsx" }
+      ],
+      "manualSteps": [
+        "Enable Maps JavaScript API and Places API (New) in one billing-enabled Google Cloud project.",
+        "Restrict the browser API key to exact application referrers and only the enabled Maps APIs.",
+        "Replace DEMO_MAP_ID before production and persist place ID, longitude, and latitude after user confirmation."
+      ]
+    }
+  }
+}

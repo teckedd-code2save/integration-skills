@@ -1,0 +1,56 @@
+{
+  "id": "oidc",
+  "name": "Vendor-neutral OpenID Connect SSO",
+  "dependencies": ["openid-client"],
+  "env": [
+    "OIDC_ISSUER_URL",
+    "OIDC_CLIENT_ID",
+    "OIDC_CLIENT_SECRET",
+    "OIDC_REDIRECT_URI",
+    { "name": "OIDC_SCOPES", "value": "openid profile email", "optional": true }
+  ],
+  "files": [
+    { "source": "flow.ts", "destination": "{{src}}/integrations/oidc/flow.ts" },
+    { "source": "next-routes.ts", "destination": "{{src}}/integrations/oidc/next-routes.ts" },
+    { "source": "browser.ts", "destination": "{{src}}/integrations/oidc/browser.ts" }
+  ],
+  "manualSteps": [
+    "Register OIDC_REDIRECT_URI exactly in the identity provider and request only openid profile email unless the product requires more.",
+    "Implement the route factories' transaction store with an encrypted or server-side, short-lived, one-time record; never expose the verifier or nonce to browser JavaScript.",
+    "Map the verified OIDC subject and issuer to the application's user, roles, and session, then test sign-in, protected access, replay rejection, and sign-out."
+  ],
+  "variants": {
+    "express": {
+      "dependencies": ["openid-client"],
+      "env": [
+        "OIDC_ISSUER_URL",
+        "OIDC_CLIENT_ID",
+        "OIDC_CLIENT_SECRET",
+        "OIDC_REDIRECT_URI",
+        { "name": "OIDC_SCOPES", "value": "openid profile email", "optional": true }
+      ],
+      "files": [
+        { "source": "flow.ts", "destination": "{{src}}/integrations/oidc/flow.ts" },
+        { "source": "express-routes.ts", "destination": "{{src}}/integrations/oidc/express-routes.ts" }
+      ],
+      "manualSteps": [
+        "Use Node.js 20 or newer with an ESM/NodeNext server build because the maintained openid-client package is ESM.",
+        "Register OIDC_REDIRECT_URI exactly in the identity provider and request only openid profile email unless the product requires more.",
+        "Implement a short-lived, one-time server transaction store and establish the application's own secure session after the verified callback.",
+        "Mount the begin and callback handlers, then test sign-in, protected access, replay rejection, and sign-out."
+      ]
+    },
+    "vite-react": {
+      "dependencies": [],
+      "env": [],
+      "files": [
+        { "source": "browser.ts", "destination": "{{src}}/integrations/oidc/browser.ts" }
+      ],
+      "manualSteps": [
+        "Compose the oidc recipe into a trusted Next.js, Express, or other backend and point beginOidcSignIn at its begin endpoint.",
+        "Do not put an OIDC client secret, PKCE verifier, nonce, token exchange, or durable session authority in the Vite browser bundle.",
+        "Use the backend session from the frontend and verify protected API access plus sign-out."
+      ]
+    }
+  }
+}

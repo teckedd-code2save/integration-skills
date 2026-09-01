@@ -1,0 +1,35 @@
+{
+  "id": "google-auth",
+  "name": "Google authentication through Clerk",
+  "configurationMode": "provider-dashboard",
+  "dependencies": [],
+  "env": [],
+  "files": [],
+  "manualSteps": [
+    "Enable Google under Clerk SSO connections for all users.",
+    "For production, register Clerk's exact redirect URI in a Google OAuth client and keep the client secret in Clerk.",
+    "Exercise Google sign-in, existing-account linking, protected API access, and sign-out."
+  ],
+  "variants": {
+    "vite-react": {
+      "dependencies": [],
+      "env": [],
+      "files": [],
+      "manualSteps": [
+        "Enable Google under Clerk SSO connections for all users.",
+        "For production, register Clerk's exact redirect URI in a Google OAuth client and keep the client secret in Clerk.",
+        "Exercise Google sign-in, existing-account linking, protected API access, and sign-out."
+      ]
+    },
+    "express": {
+      "dependencies": [],
+      "env": [],
+      "files": [],
+      "manualSteps": [
+        "Use the same Clerk application configured for Google authentication on the frontend.",
+        "Verify a Google-authenticated Clerk identity reaches a protected API route.",
+        "Do not store Google OAuth client credentials in the Express environment; Clerk owns them."
+      ]
+    }
+  }
+}

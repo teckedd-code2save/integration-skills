@@ -1,6 +1,6 @@
 # Clerk authentication recipe
 
-Use this recipe when the user wants Clerk authentication in a TypeScript application. Clerk maintains its own CLI and agent skills, so compose those upstream tools instead of maintaining duplicate framework snippets here.
+Use this recipe when the user wants Clerk authentication in a TypeScript application, including Google, LinkedIn, or Telegram login through one Clerk session system. Clerk maintains its own CLI and agent skills, so compose those upstream tools instead of maintaining duplicate framework snippets here.
 
 ## Completion contract for agents
 
@@ -20,6 +20,22 @@ Authoritative sources:
 - Clerk agent skills: https://clerk.com/docs/guides/ai/skills
 - Clerk skills repository: https://github.com/clerk/skills
 - Environment variables: https://clerk.com/docs/guides/development/clerk-environment-variables
+- Google social connection: https://clerk.com/docs/guides/configure/auth-strategies/social-connections/google
+- LinkedIn OIDC connection: https://clerk.com/docs/guides/configure/auth-strategies/social-connections/linkedin-oidc
+- Custom OIDC social provider: https://clerk.com/docs/guides/configure/auth-strategies/social-connections/custom-provider
+- Telegram OIDC login: https://core.telegram.org/bots/telegram-login
+
+## Compose requested social methods
+
+Use method facets so the manifest records the intended login methods and later agents receive their setup and verification gates:
+
+```bash
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose google-auth linkedin-auth telegram-auth --target . --install
+```
+
+These facets automatically add `clerk`; they do not add competing session systems. Google and LinkedIn use Clerk's maintained social connections. Configure Telegram as a custom OIDC provider using `https://oauth.telegram.org/.well-known/openid-configuration`, Authorization Code flow, and PKCE. Register the exact URLs with BotFather and map claims deliberately. Telegram may not supply the same verified email identity as another provider, so test the account-linking policy instead of assuming email-based linking.
+
+Use the separate `oidc` recipe when the application should own a portable OIDC flow rather than Clerk. The scaffolder rejects composing both authorities into one target.
 
 ## Inspect first
 

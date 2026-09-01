@@ -1,0 +1,35 @@
+{
+  "id": "linkedin-auth",
+  "name": "LinkedIn authentication through Clerk",
+  "configurationMode": "provider-dashboard",
+  "dependencies": [],
+  "env": [],
+  "files": [],
+  "manualSteps": [
+    "Enable LinkedIn under Clerk SSO connections for all users.",
+    "For production, request LinkedIn OIDC product access and register Clerk's exact redirect URI.",
+    "Exercise LinkedIn sign-in, existing-account linking, protected API access, and sign-out."
+  ],
+  "variants": {
+    "vite-react": {
+      "dependencies": [],
+      "env": [],
+      "files": [],
+      "manualSteps": [
+        "Enable LinkedIn under Clerk SSO connections for all users.",
+        "For production, request LinkedIn OIDC product access and register Clerk's exact redirect URI.",
+        "Exercise LinkedIn sign-in, existing-account linking, protected API access, and sign-out."
+      ]
+    },
+    "express": {
+      "dependencies": [],
+      "env": [],
+      "files": [],
+      "manualSteps": [
+        "Use the same Clerk application configured for LinkedIn authentication on the frontend.",
+        "Verify a LinkedIn-authenticated Clerk identity reaches a protected API route.",
+        "Do not store LinkedIn client credentials in the Express environment; Clerk owns them."
+      ]
+    }
+  }
+}

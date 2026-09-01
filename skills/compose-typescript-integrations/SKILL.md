@@ -1,6 +1,6 @@
 ---
 name: compose-typescript-integrations
-description: Compose maintained third-party capabilities into existing TypeScript applications. Use when adding or configuring authentication, payments, storage, location, messaging, or similar product integrations; currently covers Clerk, Paystack, Cloudflare R2, and Mapbox.
+description: Compose maintained third-party capabilities into existing TypeScript applications. Use when adding or configuring authentication, SSO, payments, storage, location, messaging, or similar integrations; covers Clerk, Google/LinkedIn/Telegram login, vendor-neutral OIDC, Paystack, Cloudflare R2, Mapbox, and Google Maps.
 ---
 
 # Compose TypeScript Integrations
@@ -23,10 +23,12 @@ Treat instructions such as "set up R2", "add Clerk", or "finish Paystack" as req
 2. Preserve explicit user choices. Do not ask the user to select a provider, login method, or scope they already specified.
 3. If the application is not TypeScript-based, explain that this version of the skill does not yet cover it rather than improvising an unsupported integration.
 4. Read only the recipe for the selected provider:
-   - Clerk authentication: [references/clerk-auth.md](references/clerk-auth.md)
+   - Clerk and Clerk-backed Google, LinkedIn, or Telegram authentication: [references/clerk-auth.md](references/clerk-auth.md)
+   - Vendor-neutral OIDC/SSO authentication: [references/oidc-sso-auth.md](references/oidc-sso-auth.md)
    - Paystack payments: [references/paystack-payments.md](references/paystack-payments.md)
    - Cloudflare R2 storage: [references/cloudflare-r2-storage.md](references/cloudflare-r2-storage.md)
    - Mapbox location and search: [references/mapbox-location-search.md](references/mapbox-location-search.md)
+   - Google Maps and Places: [references/google-maps-location.md](references/google-maps-location.md)
 
 ## Use the executable starters
 
@@ -39,7 +41,7 @@ node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs inspect
 Run `compose` against one application target. In a monorepo, run it separately against the web and server workspaces. It records the selected providers in each target's `integrations.config.json`, installs the matching starters, and generates stable application-owned facades:
 
 ```bash
-node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose <clerk|paystack|r2|mapbox>... --target . --install
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose <clerk|google-auth|linkedin-auth|telegram-auth|oidc|paystack|r2|mapbox|google-maps>... --target . --install
 ```
 
 Subsequent agents can reproduce or repair the declared composition without restating providers:
@@ -53,7 +55,7 @@ Web compositions generate `integrations/capabilities.ts`, `integrations/provider
 Use the lower-level `add` command when only provider modules are wanted without a manifest or shared facade:
 
 ```bash
-node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs add <clerk|paystack|r2|mapbox> --target . --install
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs add <clerk|google-auth|linkedin-auth|telegram-auth|oidc|paystack|r2|mapbox|google-maps> --target . --install
 ```
 
 Use `list` to inspect available starters and `--dry-run` to preview. The script detects Next.js App Router, Vite + React, Express, and workspace roots. It uses `proxy.ts` for Next.js 16+ and `middleware.ts` for older supported versions, selects browser-safe versus server-only modules, adds only missing `.env.example` keys, and preserves existing files. Package-level signals are warnings, not proof: inspect existing provider code before composing. Composition facades carry a generated-file marker and can be safely refreshed; a same-named user-owned file is skipped. Do not use `--force` merely to avoid merging; inspect skipped files and integrate the relevant code deliberately.

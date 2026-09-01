@@ -138,6 +138,52 @@ const next15Install = run(
 assert.ok(next15Install.dependencies.includes("react@~19.1.4"));
 assert.ok(next15Install.dependencies.includes("react-dom@~19.1.4"));
 
+const socialFixture = tempFixture("integration-kit-social-");
+mkdirSync(join(socialFixture, "src", "app"), { recursive: true });
+writeFileSync(
+  join(socialFixture, "package.json"),
+  JSON.stringify({ private: true, dependencies: { next: "^16.0.0" } }, null, 2),
+);
+const social = run(
+  "compose",
+  "google-auth",
+  "linkedin-auth",
+  "telegram-auth",
+  "--target",
+  socialFixture,
+);
+assert.deepEqual(
+  social.results.map((result) => result.id),
+  ["clerk", "google-auth", "linkedin-auth", "telegram-auth"],
+);
+assert.deepEqual(
+  JSON.parse(readFileSync(join(socialFixture, "integrations.config.json"), "utf8")).integrations,
+  ["clerk", "google-auth", "linkedin-auth", "telegram-auth"],
+);
+assert.deepEqual(
+  JSON.parse(
+    readFileSync(join(socialFixture, "src", "integrations", "capabilities.ts"), "utf8")
+      .match(/= (\{[\s\S]*\}) as const;/)[1],
+  ).authMethods,
+  ["google", "linkedin", "telegram"],
+);
+const socialSetup = run(
+  "setup",
+  "google-auth",
+  "linkedin-auth",
+  "telegram-auth",
+  "--target",
+  socialFixture,
+);
+assert.deepEqual(
+  socialSetup.integrations.map((integration) => integration.status),
+  ["setup-required", "provider-verification-required", "provider-verification-required", "provider-verification-required"],
+);
+assert.throws(
+  () => run("compose", "clerk", "oidc", "--target", socialFixture),
+  /choose one session authority/,
+);
+
 const workspaceFixture = tempFixture("integration-kit-workspace-");
 writeFileSync(
   join(workspaceFixture, "package.json"),
@@ -219,6 +265,127 @@ execFileSync(resolve("node_modules", ".bin", "tsc"), ["--project", join(viteFixt
   stdio: "inherit",
 });
 
+const googleMapsFixture = tempFixture("integration-kit-google-maps-");
+mkdirSync(join(googleMapsFixture, "src"), { recursive: true });
+writeFileSync(
+  join(googleMapsFixture, "package.json"),
+  JSON.stringify(
+    {
+      private: true,
+      type: "module",
+      dependencies: { vite: "^8.0.0", react: "^19.0.0", "react-dom": "^19.0.0" },
+    },
+    null,
+    2,
+  ),
+);
+const googleMaps = run("compose", "google-maps", "--target", googleMapsFixture);
+assert.equal(googleMaps.framework, "vite-react");
+assert.ok(existsSync(join(googleMapsFixture, "src", "components", "google-maps-location-picker.tsx")));
+assert.match(
+  readFileSync(join(googleMapsFixture, ".env.example"), "utf8"),
+  /^VITE_GOOGLE_MAPS_API_KEY=$/m,
+);
+assert.match(
+  readFileSync(join(googleMapsFixture, "src", "integrations", "client", "location.ts"), "utf8"),
+  /GoogleMapsLocationPicker as LocationPicker/,
+);
+assert.throws(
+  () => run("compose", "mapbox", "google-maps", "--target", googleMapsFixture),
+  /choose one location provider/,
+);
+writeFileSync(
+  join(googleMapsFixture, "tsconfig.json"),
+  JSON.stringify(
+    {
+      compilerOptions: {
+        target: "ES2022",
+        lib: ["DOM", "DOM.Iterable", "ES2022"],
+        module: "ESNext",
+        moduleResolution: "bundler",
+        jsx: "react-jsx",
+        strict: true,
+        noEmit: true,
+        skipLibCheck: true,
+        types: ["vite/client", "google.maps"],
+      },
+      include: ["src"],
+    },
+    null,
+    2,
+  ),
+);
+execFileSync(
+  resolve("node_modules", ".bin", "tsc"),
+  ["--project", join(googleMapsFixture, "tsconfig.json")],
+  { stdio: "inherit" },
+);
+
+const oidcFixture = tempFixture("integration-kit-oidc-");
+mkdirSync(join(oidcFixture, "src", "app"), { recursive: true });
+writeFileSync(
+  join(oidcFixture, "package.json"),
+  JSON.stringify({ private: true, type: "module", dependencies: { next: "^16.0.0" } }, null, 2),
+);
+const oidcResult = run("compose", "oidc", "--target", oidcFixture);
+assert.equal(oidcResult.framework, "nextjs-16-app-router");
+assert.ok(existsSync(join(oidcFixture, "src", "integrations", "oidc", "flow.ts")));
+assert.ok(existsSync(join(oidcFixture, "src", "integrations", "oidc", "next-routes.ts")));
+assert.match(
+  readFileSync(join(oidcFixture, "src", "integrations", "server.ts"), "utf8"),
+  /createOidcBeginRoute/,
+);
+for (const name of ["OIDC_ISSUER_URL", "OIDC_CLIENT_ID", "OIDC_CLIENT_SECRET", "OIDC_REDIRECT_URI"]) {
+  assert.match(readFileSync(join(oidcFixture, ".env.example"), "utf8"), new RegExp(`^${name}=$`, "m"));
+}
+writeFileSync(
+  join(oidcFixture, "tsconfig.json"),
+  JSON.stringify(
+    {
+      compilerOptions: {
+        target: "ES2022",
+        lib: ["DOM", "DOM.Iterable", "ES2022"],
+        module: "ESNext",
+        moduleResolution: "bundler",
+        strict: true,
+        noEmit: true,
+        skipLibCheck: true,
+        types: ["node"],
+      },
+      include: ["src"],
+    },
+    null,
+    2,
+  ),
+);
+execFileSync(
+  resolve("node_modules", ".bin", "tsc"),
+  ["--project", join(oidcFixture, "tsconfig.json")],
+  { stdio: "inherit" },
+);
+
+const viteOidcFixture = tempFixture("integration-kit-vite-oidc-");
+mkdirSync(join(viteOidcFixture, "src"), { recursive: true });
+writeFileSync(
+  join(viteOidcFixture, "package.json"),
+  JSON.stringify(
+    {
+      private: true,
+      type: "module",
+      dependencies: { vite: "^8.0.0", react: "^19.0.0", "react-dom": "^19.0.0" },
+    },
+    null,
+    2,
+  ),
+);
+run("compose", "oidc", "--target", viteOidcFixture);
+assert.ok(existsSync(join(viteOidcFixture, "src", "integrations", "oidc", "browser.ts")));
+assert.ok(!existsSync(join(viteOidcFixture, "src", "integrations", "oidc", "flow.ts")));
+assert.equal(
+  run("setup", "oidc", "--target", viteOidcFixture).integrations[0].status,
+  "backend-setup-required",
+);
+
 const expressFixture = tempFixture("integration-kit-express-");
 mkdirSync(join(expressFixture, "src"), { recursive: true });
 writeFileSync(
@@ -292,6 +459,55 @@ execFileSync(
   { stdio: "inherit" },
 );
 
+const oidcExpressFixture = tempFixture("integration-kit-oidc-express-");
+mkdirSync(join(oidcExpressFixture, "src"), { recursive: true });
+writeFileSync(
+  join(oidcExpressFixture, "package.json"),
+  JSON.stringify(
+    {
+      private: true,
+      type: "module",
+      dependencies: { express: "^5.0.0" },
+      devDependencies: { typescript: "^5.0.0", "@types/express": "^5.0.0" },
+    },
+    null,
+    2,
+  ),
+);
+const oidcExpress = run("compose", "oidc", "--target", oidcExpressFixture);
+assert.equal(oidcExpress.framework, "express-typescript");
+assert.ok(existsSync(join(oidcExpressFixture, "src", "integrations", "oidc", "express-routes.ts")));
+assert.match(
+  readFileSync(join(oidcExpressFixture, "src", "integrations", "server.ts"), "utf8"),
+  /createOidcCallbackHandler/,
+);
+writeFileSync(
+  join(oidcExpressFixture, "tsconfig.json"),
+  JSON.stringify(
+    {
+      compilerOptions: {
+        target: "ES2022",
+        module: "NodeNext",
+        moduleResolution: "NodeNext",
+        strict: true,
+        noEmit: true,
+        skipLibCheck: true,
+        esModuleInterop: true,
+        types: ["node"],
+        allowImportingTsExtensions: true,
+      },
+      include: ["src"],
+    },
+    null,
+    2,
+  ),
+);
+execFileSync(
+  resolve("node_modules", ".bin", "tsc"),
+  ["--project", join(oidcExpressFixture, "tsconfig.json")],
+  { stdio: "inherit" },
+);
+
 writeFileSync(
   join(fixture, "tsconfig.json"),
   JSON.stringify(
@@ -322,7 +538,12 @@ execFileSync(resolve("node_modules", ".bin", "tsc"), ["--project", join(fixture,
 
 rmSync(fixture, { recursive: true, force: true });
 rmSync(fixture15, { recursive: true, force: true });
+rmSync(socialFixture, { recursive: true, force: true });
 rmSync(workspaceFixture, { recursive: true, force: true });
 rmSync(viteFixture, { recursive: true, force: true });
+rmSync(googleMapsFixture, { recursive: true, force: true });
+rmSync(oidcFixture, { recursive: true, force: true });
+rmSync(viteOidcFixture, { recursive: true, force: true });
 rmSync(expressFixture, { recursive: true, force: true });
+rmSync(oidcExpressFixture, { recursive: true, force: true });
 console.log("scaffolder and starter typecheck tests passed");

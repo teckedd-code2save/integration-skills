@@ -1,0 +1,35 @@
+{
+  "id": "telegram-auth",
+  "name": "Telegram OIDC authentication through Clerk",
+  "configurationMode": "provider-dashboard",
+  "dependencies": [],
+  "env": [],
+  "files": [],
+  "manualSteps": [
+    "Create or reuse a Telegram bot and obtain its OIDC client credentials through @BotFather Login Widget settings.",
+    "Configure a Clerk custom social provider using https://oauth.telegram.org/.well-known/openid-configuration with PKCE.",
+    "Register Clerk's exact redirect URI in Telegram and deliberately map Telegram identities that may not include email."
+  ],
+  "variants": {
+    "vite-react": {
+      "dependencies": [],
+      "env": [],
+      "files": [],
+      "manualSteps": [
+        "Create or reuse a Telegram bot and obtain its OIDC client credentials through @BotFather Login Widget settings.",
+        "Configure a Clerk custom social provider using https://oauth.telegram.org/.well-known/openid-configuration with PKCE.",
+        "Register Clerk's exact redirect URI in Telegram and deliberately map Telegram identities that may not include email."
+      ]
+    },
+    "express": {
+      "dependencies": [],
+      "env": [],
+      "files": [],
+      "manualSteps": [
+        "Use the same Clerk application configured with Telegram OIDC on the frontend.",
+        "Verify a Telegram-authenticated Clerk identity reaches a protected API route.",
+        "Do not store the Telegram OIDC client secret in Express; Clerk owns it."
+      ]
+    }
+  }
+}

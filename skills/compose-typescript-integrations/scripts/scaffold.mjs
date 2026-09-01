@@ -62,7 +62,17 @@ function readJson(path) {
 }
 
 function availableRecipes() {
-  return ["clerk", "paystack", "r2", "mapbox"].map((id) =>
+  return [
+    "clerk",
+    "google-auth",
+    "linkedin-auth",
+    "telegram-auth",
+    "oidc",
+    "paystack",
+    "r2",
+    "mapbox",
+    "google-maps",
+  ].map((id) =>
     readJson(join(recipesRoot, id, "recipe.json")),
   );
 }
@@ -121,6 +131,9 @@ function sourceIntegrationSignals(target) {
     else if (/jsonwebtoken|verifyToken\(|OTPService|otp\/verify/i.test(content)) {
       add("clerk", "Existing non-Clerk authentication; plan account and session migration", path);
     }
+    if (/openid-client|OIDC_ISSUER_URL|authorizationCodeGrant/.test(content)) {
+      add("oidc", "Vendor-neutral OIDC integration", path);
+    }
     if (/api\.paystack\.co|x-paystack-signature|PAYSTACK_SECRET_KEY/.test(content)) {
       add("paystack", "Paystack API, webhook, or configuration path", path);
     }
@@ -131,8 +144,11 @@ function sourceIntegrationSignals(target) {
     }
     if (/mapbox-gl|@mapbox\/|MAPBOX_ACCESS_TOKEN/.test(content)) {
       add("mapbox", "Mapbox source integration", path);
-    } else if (/GOOGLE_MAPS_API_KEY|Geoapify|maps\.googleapis\.com/.test(content)) {
-      add("mapbox", "Existing non-Mapbox location provider; verify migration intent", path);
+    }
+    if (/@googlemaps\/|GOOGLE_MAPS_API_KEY|maps\.googleapis\.com/.test(content)) {
+      add("google-maps", "Google Maps source integration", path);
+    } else if (/Geoapify/.test(content)) {
+      add("google-maps", "Existing non-Google location provider; verify migration intent", path);
     }
   }
   return signals;
@@ -143,6 +159,9 @@ function integrationSignals(packageJson, target) {
   const signals = [];
   if (Object.keys(dependencies).some((name) => name.startsWith("@clerk/"))) {
     signals.push({ integration: "clerk", evidence: "Clerk SDK dependency", kind: "dependency" });
+  }
+  if (dependencies["openid-client"]) {
+    signals.push({ integration: "oidc", evidence: "OpenID Connect client dependency", kind: "dependency" });
   }
   if (dependencies["paystack-api"] || dependencies["@paystack/inline-js"]) {
     signals.push({ integration: "paystack", evidence: "Paystack SDK dependency", kind: "dependency" });
@@ -156,6 +175,9 @@ function integrationSignals(packageJson, target) {
   }
   if (dependencies["mapbox-gl"] || Object.keys(dependencies).some((name) => name.startsWith("@mapbox/"))) {
     signals.push({ integration: "mapbox", evidence: "Mapbox SDK dependency", kind: "dependency" });
+  }
+  if (dependencies["@googlemaps/js-api-loader"] || dependencies["@vis.gl/react-google-maps"]) {
+    signals.push({ integration: "google-maps", evidence: "Google Maps SDK dependency", kind: "dependency" });
   }
   return [...signals, ...sourceIntegrationSignals(target)];
 }
@@ -303,11 +325,21 @@ function managedCompositionFile(target, path, content, options) {
 
 function compositionSources(ids, context) {
   const selected = new Set(ids);
+  const authMethods = [
+    ["google-auth", "google"],
+    ["linkedin-auth", "linkedin"],
+    ["telegram-auth", "telegram"],
+  ].filter(([id]) => selected.has(id)).map(([, method]) => method);
   const capabilities = {
-    auth: selected.has("clerk") ? "clerk" : null,
+    auth: selected.has("clerk") ? "clerk" : selected.has("oidc") ? "oidc" : null,
+    authMethods,
     payments: selected.has("paystack") ? "paystack" : null,
     storage: selected.has("r2") ? "r2" : null,
-    location: selected.has("mapbox") ? "mapbox" : null,
+    location: selected.has("mapbox")
+      ? "mapbox"
+      : selected.has("google-maps")
+        ? "google-maps"
+        : null,
   };
 
   const serverExports = [];
@@ -336,15 +368,34 @@ function compositionSources(ids, context) {
       'export { clerkAuthMiddleware, requireClerkAuth, getAuthenticatedUserId } from "./clerk/middleware";',
     );
   }
+  if (selected.has("oidc")) {
+    serverExports.push(
+      context.kind === "express"
+        ? 'export { createOidcBeginHandler, createOidcCallbackHandler } from "./oidc/express-routes.js";'
+        : 'export { createOidcBeginRoute, createOidcCallbackRoute } from "./oidc/next-routes";',
+      context.kind === "express"
+        ? 'export { beginOidcAuthorization, finishOidcAuthorization } from "./oidc/flow.js";'
+        : 'export { beginOidcAuthorization, finishOidcAuthorization } from "./oidc/flow";',
+      context.kind === "express"
+        ? 'export type { OidcIdentity, OidcTransaction } from "./oidc/flow.js";'
+        : 'export type { OidcIdentity, OidcTransaction } from "./oidc/flow";',
+    );
+  }
 
   const authClient = selected.has("clerk")
     ? 'export { ClerkAuthControls as AuthControls } from "../../components/clerk-auth-controls";'
-    : "export {};";
+    : selected.has("oidc")
+      ? 'export { beginOidcSignIn } from "../oidc/browser";'
+      : "export {};";
   const locationClient = selected.has("mapbox")
     ? context.kind === "nextjs-app-router"
       ? 'import dynamic from "next/dynamic";\n\nexport type { MapboxLocation as LocationSelection } from "../../components/mapbox-location-picker";\n\nexport const LocationPicker = dynamic(\n  () => import("../../components/mapbox-location-picker").then((module) => module.MapboxLocationPicker),\n  { ssr: false },\n);'
       : 'export { MapboxLocationPicker as LocationPicker } from "../../components/mapbox-location-picker";\nexport type { MapboxLocation as LocationSelection } from "../../components/mapbox-location-picker";'
-    : "export {};";
+    : selected.has("google-maps")
+      ? context.kind === "nextjs-app-router"
+        ? 'import dynamic from "next/dynamic";\n\nexport type { GoogleMapsLocation as LocationSelection } from "../../components/google-maps-location-picker";\n\nexport const LocationPicker = dynamic(\n  () => import("../../components/google-maps-location-picker").then((module) => module.GoogleMapsLocationPicker),\n  { ssr: false },\n);'
+        : 'export { GoogleMapsLocationPicker as LocationPicker } from "../../components/google-maps-location-picker";\nexport type { GoogleMapsLocation as LocationSelection } from "../../components/google-maps-location-picker";'
+      : "export {};";
   const storageClient = selected.has("r2")
     ? 'export { uploadToPresignedUrl as uploadToStorageUrl } from "../r2/upload";'
     : "export {};";
@@ -495,6 +546,78 @@ const setupGuides = {
       "Any existing-user or role migration is explicitly resolved and project typecheck, relevant tests, and build pass.",
     ],
   },
+  "google-auth": {
+    connector: "Clerk dashboard and Google Cloud Console",
+    dashboard: "https://dashboard.clerk.com/",
+    agentActions: [
+      "Reuse or compose Clerk, inspect existing account linking, and enable Google only when it is requested.",
+      "Configure Google under Clerk SSO connections for all users and capture Clerk's exact authorized redirect URI.",
+      "For production, create or reuse a Google OAuth client, register the exact redirect URI, and store its credentials only in Clerk.",
+      "Exercise Google sign-in, existing-account linking, protected server access, and sign-out before project checks.",
+    ],
+    humanActions: [
+      "Complete Clerk or Google login, MFA, OAuth consent-screen decisions, and production credential approval only when required.",
+    ],
+    completionCriteria: [
+      "Google sign-in completes against the intended Clerk instance without creating an unintended duplicate user.",
+      "A real protected server path receives the linked Clerk identity and rejects signed-out access.",
+      "Production redirect URIs and credentials are configured when production was requested, and project checks pass.",
+    ],
+  },
+  "linkedin-auth": {
+    connector: "Clerk dashboard and LinkedIn Developer Portal",
+    dashboard: "https://dashboard.clerk.com/",
+    agentActions: [
+      "Reuse or compose Clerk, inspect existing account linking, and enable LinkedIn OIDC only when it is requested.",
+      "Configure LinkedIn under Clerk SSO connections for all users and capture Clerk's exact redirect URI.",
+      "For production, create or reuse a LinkedIn app, request Sign In with LinkedIn using OpenID Connect, and store credentials only in Clerk.",
+      "Exercise LinkedIn sign-in, existing-account linking, protected server access, and sign-out before project checks.",
+    ],
+    humanActions: [
+      "Complete Clerk or LinkedIn login, MFA, company-page association, product-access approval, and production credential entry only when required.",
+    ],
+    completionCriteria: [
+      "LinkedIn sign-in completes against the intended Clerk instance without creating an unintended duplicate user.",
+      "The LinkedIn app has OIDC product access and the exact Clerk redirect URI for the requested environment.",
+      "A protected server path receives the linked Clerk identity, signed-out access is rejected, and project checks pass.",
+    ],
+  },
+  "telegram-auth": {
+    connector: "Clerk dashboard and Telegram @BotFather",
+    dashboard: "https://dashboard.clerk.com/",
+    agentActions: [
+      "Reuse or compose Clerk and configure Telegram as a custom OIDC social provider for all users rather than adding a second session system.",
+      "Create or reuse the product's Telegram bot, register every exact allowed origin and Clerk redirect URI through @BotFather, and obtain the OIDC client credentials.",
+      "Configure Clerk's custom provider with Telegram's OIDC discovery endpoint, Authorization Code flow with PKCE, minimal scopes, and explicit claim mapping.",
+      "Exercise Telegram sign-in, ID-token-backed identity, existing-account linking policy, protected server access, and sign-out before project checks.",
+    ],
+    humanActions: [
+      "Complete Telegram or Clerk login, BotFather confirmation, MFA, bot ownership decisions, and one-time client-secret entry only when required.",
+    ],
+    completionCriteria: [
+      "Telegram OIDC sign-in completes through Clerk only from registered URLs and produces a verified linked identity.",
+      "Claim mapping and account-linking behavior are deliberate even when Telegram does not provide the same email identity as another provider.",
+      "A protected server path receives the Clerk identity, signed-out access is rejected, and project checks pass.",
+    ],
+  },
+  oidc: {
+    connector: "Identity-provider dashboard or administrative CLI",
+    dashboard: "Use the chosen provider's OIDC application or client settings",
+    agentActions: [
+      "Inspect the existing session, user, role, protected-route, callback, and sign-out paths and keep one session authority per application.",
+      "Discover the provider from its issuer URL, register the exact callback, request minimal scopes, and keep the client secret server-only.",
+      "Implement a signed/encrypted or server-side transaction store with a short TTL and one-time consumption for state, nonce, and PKCE verifier.",
+      "Map the verified issuer and subject to the application's user and roles, establish the application session, and run security and project checks.",
+    ],
+    humanActions: [
+      "Complete identity-provider login, MFA, administrator approval, consent, production credential entry, or domain verification only when required.",
+    ],
+    completionCriteria: [
+      "Authorization Code flow with PKCE, state, nonce, discovery, signature, issuer, and audience validation completes against the intended provider.",
+      "A real protected path accepts the established application session, signed-out access is rejected, and sign-out removes access.",
+      "Expired, missing, replayed, or altered transactions fail safely; user and role mapping is deliberate; project checks pass.",
+    ],
+  },
   paystack: {
     connector: "Paystack dashboard",
     dashboard: "https://dashboard.paystack.com/#/settings/developer",
@@ -550,6 +673,24 @@ const setupGuides = {
       "The token is restricted appropriately and project typecheck, relevant tests, and build pass.",
     ],
   },
+  "google-maps": {
+    connector: "Google Cloud CLI or authenticated Google Cloud Console",
+    dashboard: "https://console.cloud.google.com/google/maps-apis/credentials",
+    agentActions: [
+      "Inspect existing location providers and make an additive setup or provider migration explicit before changing the real product flow.",
+      "Create or reuse one Google Cloud project with billing, enable Maps JavaScript API and Places API (New), and create a browser key.",
+      "Restrict the key to exact development and production HTTP referrers and only the APIs the application uses.",
+      "Integrate the modern Places autocomplete and map picker, persist place ID plus longitude and latitude, then exercise live behavior and project checks.",
+    ],
+    humanActions: [
+      "Complete Google login, MFA, billing-account attachment, terms acceptance, or quota and budget decisions only when required.",
+    ],
+    completionCriteria: [
+      "Live place search and selection work on an intended origin and store the same place ID, longitude, and latitude shown to the user.",
+      "The browser key is rejected from an unauthorized origin and restricted to the required Maps APIs.",
+      "Loading, keyboard, empty, error, selection, and location-denial paths work and project checks pass.",
+    ],
+  },
 };
 
 function configurationReport(selected, context, target) {
@@ -557,9 +698,14 @@ function configurationReport(selected, context, target) {
   return selected.map((recipe) => {
     const variant = recipeVariant(recipe, context);
     const variables = variant.env.map((entry) => typeof entry === "string" ? entry : entry.name);
+    const requiredVariables = variant.env
+      .filter((entry) => typeof entry === "string" || !entry.optional)
+      .map((entry) => typeof entry === "string" ? entry : entry.name);
     const configured = variables.filter((name) => configuredValue(environment[name]));
-    const missing = variables.filter((name) => !configured.includes(name));
-    const status = recipe.id === "r2" && context.kind === "vite-react"
+    const missing = requiredVariables.filter((name) => !configured.includes(name));
+    const status = recipe.configurationMode === "provider-dashboard"
+      ? "provider-verification-required"
+      : ["r2", "oidc"].includes(recipe.id) && context.kind === "vite-react"
       ? "backend-setup-required"
       : missing.length === 0
         ? "locally-configured"
@@ -744,11 +890,21 @@ if (
   );
 }
 
-const selectedIds = [...new Set(
+let selectedIds = [...new Set(
   options.command === "compose" && options.recipes.length === 0
     ? selectedFromConfig(options.target)
     : options.recipes,
 )];
+const authFacets = new Set(["google-auth", "linkedin-auth", "telegram-auth"]);
+if (selectedIds.some((id) => authFacets.has(id)) && !selectedIds.includes("clerk")) {
+  selectedIds = ["clerk", ...selectedIds];
+}
+if (selectedIds.includes("mapbox") && selectedIds.includes("google-maps")) {
+  fail("choose one location provider per target: mapbox or google-maps");
+}
+if (selectedIds.includes("clerk") && selectedIds.includes("oidc")) {
+  fail("choose one session authority per target: clerk or oidc");
+}
 const selected = selectedIds.map((id) => {
   const recipe = recipes.find((item) => item.id === id);
   if (!recipe) fail(`unknown recipe ${id}; run 'scaffold.mjs list'`);

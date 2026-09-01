@@ -14,10 +14,11 @@ Install and use the compose-typescript-integrations skill from https://github.co
 
 Replace `<capability>` with a concrete request such as:
 
-- `Clerk Google and phone authentication`
+- `Clerk Google, LinkedIn, Telegram, and phone authentication`
+- `vendor-neutral OIDC SSO`
 - `Paystack card and Ghana mobile-money checkout`
 - `private Cloudflare R2 uploads`
-- `Mapbox Ghana-biased place search and a selectable map`
+- `Mapbox or Google Maps Ghana-biased place search and a selectable map`
 
 If the agent already supports the Skills CLI, install it directly:
 
@@ -31,14 +32,14 @@ Then ask normally:
 Use $compose-typescript-integrations to set up and verify R2 here.
 ```
 
-That short outcome request is the intended interface for Clerk, Paystack, R2, and Mapbox. Each provider exposes the same agent actions, human-only actions, and completion criteria. The skill makes the agent responsible for inspecting and adapting existing code, using available provider connectors, protecting secrets, completing project tests, and running the provider's verification gate. The agent should interrupt only for a genuinely human step such as login or MFA.
+That short outcome request is the intended interface for every recipe. Each provider exposes the same agent actions, human-only actions, and completion criteria. The skill makes the agent responsible for inspecting and adapting existing code, using available provider connectors, protecting secrets, completing project tests, and running the provider's verification gate. The agent should interrupt only for a genuinely human step such as login or MFA.
 
 The recommended command composes one or several integrations and records the choice for every later agent:
 
 ```bash
 node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs list
 node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs inspect --target .
-node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose clerk paystack r2 mapbox --target . --install
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose google-auth linkedin-auth telegram-auth paystack r2 google-maps --target . --install
 ```
 
 For a frontend/backend monorepo, target each application workspace independently. For example:
@@ -89,6 +90,16 @@ Example request:
 
 > Use `$compose-typescript-integrations` to add Clerk Google and phone authentication to this Next.js application.
 
+Google, LinkedIn, and Telegram are selectable method facets. They automatically compose Clerk so the app keeps one user/session authority and the setup report leads each provider's dashboard flow.
+
+### Vendor-neutral OIDC SSO
+
+The OIDC recipe uses discovery, Authorization Code flow, S256 PKCE, state, nonce, and verified ID-token claims. Next.js and Express receive route factories that plug into the application's transaction store, user mapping, and session; Vite receives only a safe redirect helper and requires a backend.
+
+Example request:
+
+> Use `$compose-typescript-integrations` to add vendor-neutral OIDC SSO to this application.
+
 ### Paystack payments
 
 The Paystack recipe includes a server client, precise subunit conversion, reference generation, verification assertions, raw-body webhook signature validation, and Next.js or Express route factories. It supports hosted checkout, Ghana mobile money, idempotent webhooks, and test-to-live guidance.
@@ -112,6 +123,14 @@ The Mapbox recipe includes a client-only React location picker with Search Box, 
 Example request:
 
 > Use `$compose-typescript-integrations` to add Ghana-biased place search and a selectable map to this React application.
+
+### Google Maps and Places
+
+The Google Maps recipe uses the official loader, modern Places autocomplete, a map and advanced marker, Ghana defaults, and the same explicit place/longitude/latitude contract as the Mapbox facade.
+
+Example request:
+
+> Use `$compose-typescript-integrations` to add Google Maps place search and a selectable map to this React application.
 
 ## Local development
 
@@ -137,3 +156,4 @@ node skills/compose-typescript-integrations/scripts/test-scaffold.mjs
 - Resend transactional email
 - Sentry monitoring
 - Hubtel messaging and payments
+- Routes and traffic-aware ETA
