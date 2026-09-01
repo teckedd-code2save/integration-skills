@@ -1,6 +1,6 @@
 # Google Maps and Places location recipe
 
-Use this recipe for a Google map with modern Places autocomplete and an explicit place/coordinate selection contract. Add Routes API or Route Matrix only when the product also needs directions, travel-time estimates, dispatch, or ranking by ETA.
+Use this recipe for a Google map with modern Places autocomplete and an explicit place/coordinate selection contract. Compose the separate `routing-eta` recipe when the product also needs directions, travel-time estimates, dispatch inputs, or ranking by ETA.
 
 ## Completion contract for agents
 

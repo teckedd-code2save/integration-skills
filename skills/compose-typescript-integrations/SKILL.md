@@ -1,6 +1,6 @@
 ---
 name: compose-typescript-integrations
-description: Compose maintained third-party capabilities into existing TypeScript applications. Use when adding or configuring authentication, SSO, payments, storage, location, messaging, or similar integrations; covers Clerk, Google/LinkedIn/Telegram login, vendor-neutral OIDC, Paystack, Cloudflare R2, Mapbox, and Google Maps.
+description: Compose maintained third-party capabilities into existing TypeScript applications. Use when adding or configuring authentication, SSO, payments, storage, maps, routing/ETA, or similar integrations; covers managed and vendor-neutral auth, Paystack, R2, Mapbox, Google Maps, and provider-neutral routing.
 ---
 
 # Compose TypeScript Integrations
@@ -29,6 +29,7 @@ Treat instructions such as "set up R2", "add Clerk", or "finish Paystack" as req
    - Cloudflare R2 storage: [references/cloudflare-r2-storage.md](references/cloudflare-r2-storage.md)
    - Mapbox location and search: [references/mapbox-location-search.md](references/mapbox-location-search.md)
    - Google Maps and Places: [references/google-maps-location.md](references/google-maps-location.md)
+   - Provider-neutral routing and ETA: [references/routing-eta.md](references/routing-eta.md)
 
 ## Use the executable starters
 
@@ -41,7 +42,7 @@ node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs inspect
 Run `compose` against one application target. In a monorepo, run it separately against the web and server workspaces. It records the selected providers in each target's `integrations.config.json`, installs the matching starters, and generates stable application-owned facades:
 
 ```bash
-node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose <clerk|google-auth|linkedin-auth|telegram-auth|oidc|paystack|r2|mapbox|google-maps>... --target . --install
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose <clerk|google-auth|linkedin-auth|telegram-auth|oidc|paystack|r2|mapbox|google-maps|routing-eta>... --target . --install
 ```
 
 Subsequent agents can reproduce or repair the declared composition without restating providers:
@@ -55,7 +56,7 @@ Web compositions generate `integrations/capabilities.ts`, `integrations/provider
 Use the lower-level `add` command when only provider modules are wanted without a manifest or shared facade:
 
 ```bash
-node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs add <clerk|google-auth|linkedin-auth|telegram-auth|oidc|paystack|r2|mapbox|google-maps> --target . --install
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs add <clerk|google-auth|linkedin-auth|telegram-auth|oidc|paystack|r2|mapbox|google-maps|routing-eta> --target . --install
 ```
 
 Use `list` to inspect available starters and `--dry-run` to preview. The script detects Next.js App Router, Vite + React, Express, and workspace roots. It uses `proxy.ts` for Next.js 16+ and `middleware.ts` for older supported versions, selects browser-safe versus server-only modules, adds only missing `.env.example` keys, and preserves existing files. Package-level signals are warnings, not proof: inspect existing provider code before composing. Composition facades carry a generated-file marker and can be safely refreshed; a same-named user-owned file is skipped. Do not use `--force` merely to avoid merging; inspect skipped files and integrate the relevant code deliberately.
@@ -67,7 +68,7 @@ node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs setup <
 node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs doctor <provider>... --target .
 ```
 
-`setup` reports missing configuration without printing secret values and gives the exact connector/CLI/dashboard path. Inspect the existing call path, configuration, authorization, ownership, failure handling, and tests before choosing whether to reuse it behind the generated facade or replace it. For R2, run `doctor r2 --live` after configuration; it performs a temporary put/get/delete round trip and removes its probe object.
+`setup` reports missing configuration without printing secret values and gives the exact connector/CLI/dashboard path. Inspect the existing call path, configuration, authorization, ownership, failure handling, and tests before choosing whether to reuse it behind the generated facade or replace it. For R2, run `doctor r2 --live` after configuration; it performs a temporary put/get/delete round trip and removes its probe object. For routing, `doctor routing-eta --live` makes one traffic-aware Accra route request and checks for a usable distance and duration without printing the credential.
 
 Every provider setup report separates `agentActions`, `humanActions`, and `completionCriteria`. Perform every agent action. Surface a human action only when it is actually blocked on the user; its presence in the report is not a reason to stop early.
 

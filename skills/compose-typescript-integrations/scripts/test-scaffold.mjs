@@ -12,7 +12,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { tmpdir } from "node:os";
 
 const script = resolve(dirname(fileURLToPath(import.meta.url)), "scaffold.mjs");
@@ -212,11 +212,13 @@ writeFileSync(
     2,
   ),
 );
-const vite = run("compose", "clerk", "r2", "mapbox", "--target", viteFixture);
+const vite = run("compose", "clerk", "r2", "mapbox", "routing-eta", "--target", viteFixture);
 assert.equal(vite.framework, "vite-react");
 assert.ok(existsSync(join(viteFixture, "src", "integrations", "clerk", "provider.tsx")));
 assert.ok(existsSync(join(viteFixture, "src", "components", "mapbox-location-picker.tsx")));
 assert.ok(existsSync(join(viteFixture, "src", "integrations", "r2", "upload.ts")));
+assert.ok(existsSync(join(viteFixture, "src", "integrations", "routing-eta", "browser.ts")));
+assert.ok(!existsSync(join(viteFixture, "src", "integrations", "routing-eta", "client.ts")));
 assert.match(
   readFileSync(join(viteFixture, ".env.example"), "utf8"),
   /^VITE_CLERK_PUBLISHABLE_KEY=$/m,
@@ -229,10 +231,10 @@ assert.throws(
   () => run("compose", "paystack", "--target", viteFixture),
   /does not have a vite-react starter/,
 );
-const viteSetup = run("setup", "clerk", "mapbox", "--target", viteFixture);
+const viteSetup = run("setup", "clerk", "mapbox", "routing-eta", "--target", viteFixture);
 assert.deepEqual(
   viteSetup.integrations.map((integration) => integration.status),
-  ["setup-required", "setup-required"],
+  ["setup-required", "setup-required", "backend-setup-required"],
 );
 assert.match(viteSetup.integrations[0].guide.dashboard, /clerk/);
 for (const integration of viteSetup.integrations) {
@@ -320,6 +322,190 @@ execFileSync(
   ["--project", join(googleMapsFixture, "tsconfig.json")],
   { stdio: "inherit" },
 );
+
+const routingFixture = tempFixture("integration-kit-routing-");
+mkdirSync(join(routingFixture, "src", "app"), { recursive: true });
+writeFileSync(
+  join(routingFixture, "package.json"),
+  JSON.stringify({ private: true, type: "module", dependencies: { next: "^16.0.0" } }, null, 2),
+);
+const routing = run("compose", "google-maps", "routing-eta", "--target", routingFixture);
+assert.equal(routing.framework, "nextjs-16-app-router");
+assert.ok(!routing.dependencies.includes(null));
+assert.ok(existsSync(join(routingFixture, "src", "integrations", "routing-eta", "client.ts")));
+assert.ok(existsSync(join(routingFixture, "src", "integrations", "routing-eta", "next-routes.ts")));
+assert.match(
+  readFileSync(join(routingFixture, "src", "integrations", "server.ts"), "utf8"),
+  /createRouteMatrixRoute/,
+);
+assert.match(
+  readFileSync(join(routingFixture, "src", "integrations", "client", "routing.ts"), "utf8"),
+  /requestRouteEstimate/,
+);
+const routingEnv = readFileSync(join(routingFixture, ".env.example"), "utf8");
+assert.match(routingEnv, /^ROUTING_PROVIDER=google$/m);
+assert.match(routingEnv, /^GOOGLE_ROUTES_API_KEY=$/m);
+assert.match(routingEnv, /^MAPBOX_ACCESS_TOKEN=$/m);
+const googleRoutingSetup = run("setup", "routing-eta", "--target", routingFixture).integrations[0];
+assert.equal(googleRoutingSetup.status, "setup-required");
+assert.deepEqual(googleRoutingSetup.missing, ["GOOGLE_ROUTES_API_KEY"]);
+writeFileSync(
+  join(routingFixture, ".env.local"),
+  "ROUTING_PROVIDER=mapbox\nMAPBOX_ACCESS_TOKEN=test-mapbox-token\n",
+);
+const mapboxRoutingSetup = run("setup", "routing-eta", "--target", routingFixture).integrations[0];
+assert.equal(mapboxRoutingSetup.status, "locally-configured");
+assert.deepEqual(mapboxRoutingSetup.missing, []);
+writeFileSync(
+  join(routingFixture, "tsconfig.json"),
+  JSON.stringify(
+    {
+      compilerOptions: {
+        target: "ES2022",
+        lib: ["DOM", "DOM.Iterable", "ES2022"],
+        module: "ESNext",
+        moduleResolution: "bundler",
+        jsx: "react-jsx",
+        strict: true,
+        noEmit: true,
+        skipLibCheck: true,
+        types: ["node", "google.maps"],
+      },
+      include: ["src"],
+    },
+    null,
+    2,
+  ),
+);
+execFileSync(
+  resolve("node_modules", ".bin", "tsc"),
+  ["--project", join(routingFixture, "tsconfig.json")],
+  { stdio: "inherit" },
+);
+
+const routingClient = await import(pathToFileURL(resolve(
+  "skills/compose-typescript-integrations/assets/recipes/routing-eta/template/client.ts",
+)).href);
+const originalFetch = globalThis.fetch;
+const originalProvider = process.env.ROUTING_PROVIDER;
+const originalGoogleKey = process.env.GOOGLE_ROUTES_API_KEY;
+const originalMapboxToken = process.env.MAPBOX_ACCESS_TOKEN;
+try {
+  process.env.ROUTING_PROVIDER = "google";
+  process.env.GOOGLE_ROUTES_API_KEY = "test-google-key";
+  globalThis.fetch = async (url, init) => {
+    assert.equal(String(url), "https://routes.googleapis.com/directions/v2:computeRoutes");
+    assert.equal(init.headers["X-Goog-Api-Key"], "test-google-key");
+    const body = JSON.parse(init.body);
+    assert.deepEqual(body.origin.location.latLng, { latitude: 5.561, longitude: -0.2077 });
+    assert.equal(body.routingPreference, "TRAFFIC_AWARE");
+    return Response.json({
+      routes: [{
+        distanceMeters: 8123,
+        duration: "1020s",
+        staticDuration: "780s",
+        polyline: { encodedPolyline: "google-route" },
+        warnings: ["test warning"],
+      }],
+    });
+  };
+  const googleEstimate = await routingClient.estimateRoute({
+    origin: { latitude: 5.561, longitude: -0.2077 },
+    destination: { latitude: 5.6224, longitude: -0.173 },
+  });
+  assert.deepEqual(googleEstimate, {
+    provider: "google",
+    mode: "driving",
+    distanceMeters: 8123,
+    durationSeconds: 1020,
+    baselineDurationSeconds: 780,
+    trafficAware: true,
+    polyline: { encoded: "google-route", precision: 5 },
+    warnings: ["test warning"],
+  });
+  globalThis.fetch = async (url, init) => {
+    assert.equal(String(url), "https://routes.googleapis.com/distanceMatrix/v2:computeRouteMatrix");
+    const body = JSON.parse(init.body);
+    assert.equal(body.origins.length, 1);
+    assert.equal(body.destinations.length, 2);
+    return Response.json([
+      {
+        originIndex: 0,
+        destinationIndex: 0,
+        condition: "ROUTE_EXISTS",
+        distanceMeters: 8123,
+        duration: "1020s",
+        staticDuration: "780s",
+      },
+      { originIndex: 0, destinationIndex: 1, condition: "ROUTE_NOT_FOUND" },
+    ]);
+  };
+  const googleMatrix = await routingClient.estimateRouteMatrix({
+    origins: [{ latitude: 5.561, longitude: -0.2077 }],
+    destinations: [
+      { latitude: 5.6224, longitude: -0.173 },
+      { latitude: 5.6037, longitude: -0.187 },
+    ],
+  });
+  assert.equal(googleMatrix.elements[0].durationSeconds, 1020);
+  assert.equal(googleMatrix.elements[1].condition, "route-not-found");
+
+  process.env.ROUTING_PROVIDER = "mapbox";
+  process.env.MAPBOX_ACCESS_TOKEN = "test-mapbox-token";
+  globalThis.fetch = async (url) => {
+    const parsed = new URL(String(url));
+    assert.match(parsed.pathname, /-0\.2077,5\.561;-0\.173,5\.6224$/);
+    assert.equal(parsed.searchParams.get("access_token"), "test-mapbox-token");
+    return Response.json({
+      code: "Ok",
+      routes: [{ distance: 7900, duration: 990, duration_typical: 760, geometry: "mapbox-route" }],
+    });
+  };
+  const mapboxEstimate = await routingClient.estimateRoute({
+    origin: { latitude: 5.561, longitude: -0.2077 },
+    destination: { latitude: 5.6224, longitude: -0.173 },
+  });
+  assert.equal(mapboxEstimate.provider, "mapbox");
+  assert.equal(mapboxEstimate.durationSeconds, 990);
+  assert.equal(mapboxEstimate.baselineDurationSeconds, 760);
+  assert.deepEqual(mapboxEstimate.polyline, { encoded: "mapbox-route", precision: 6 });
+  globalThis.fetch = async (url) => {
+    const parsed = new URL(String(url));
+    assert.equal(parsed.searchParams.get("sources"), "0");
+    assert.equal(parsed.searchParams.get("destinations"), "1;2");
+    return Response.json({
+      code: "Ok",
+      durations: [[990, null]],
+      distances: [[7900, null]],
+    });
+  };
+  const mapboxMatrix = await routingClient.estimateRouteMatrix({
+    origins: [{ latitude: 5.561, longitude: -0.2077 }],
+    destinations: [
+      { latitude: 5.6224, longitude: -0.173 },
+      { latitude: 5.6037, longitude: -0.187 },
+    ],
+  });
+  assert.deepEqual(
+    mapboxMatrix.elements.map((element) => element.condition),
+    ["route-exists", "route-not-found"],
+  );
+  await assert.rejects(
+    routingClient.estimateRoute({
+      origin: { latitude: 95, longitude: 0 },
+      destination: { latitude: 5.6224, longitude: -0.173 },
+    }),
+    /valid WGS84/,
+  );
+} finally {
+  globalThis.fetch = originalFetch;
+  if (originalProvider === undefined) delete process.env.ROUTING_PROVIDER;
+  else process.env.ROUTING_PROVIDER = originalProvider;
+  if (originalGoogleKey === undefined) delete process.env.GOOGLE_ROUTES_API_KEY;
+  else process.env.GOOGLE_ROUTES_API_KEY = originalGoogleKey;
+  if (originalMapboxToken === undefined) delete process.env.MAPBOX_ACCESS_TOKEN;
+  else process.env.MAPBOX_ACCESS_TOKEN = originalMapboxToken;
+}
 
 const oidcFixture = tempFixture("integration-kit-oidc-");
 mkdirSync(join(oidcFixture, "src", "app"), { recursive: true });
@@ -410,11 +596,12 @@ assert.deepEqual(
   expressInspection.existingIntegrationSignals.map((signal) => signal.integration),
   ["paystack", "r2"],
 );
-const expressResult = run("compose", "clerk", "paystack", "r2", "--target", expressFixture);
+const expressResult = run("compose", "clerk", "paystack", "r2", "routing-eta", "--target", expressFixture);
 assert.equal(expressResult.framework, "express-typescript");
 assert.ok(existsSync(join(expressFixture, "src", "integrations", "clerk", "middleware.ts")));
 assert.ok(existsSync(join(expressFixture, "src", "integrations", "paystack", "express-routes.ts")));
 assert.ok(existsSync(join(expressFixture, "src", "integrations", "r2", "express-routes.ts")));
+assert.ok(existsSync(join(expressFixture, "src", "integrations", "routing-eta", "express-routes.ts")));
 assert.match(
   readFileSync(join(expressFixture, "src", "integrations", "server.ts"), "utf8"),
   /createPaymentInitializeHandler/,
@@ -542,6 +729,7 @@ rmSync(socialFixture, { recursive: true, force: true });
 rmSync(workspaceFixture, { recursive: true, force: true });
 rmSync(viteFixture, { recursive: true, force: true });
 rmSync(googleMapsFixture, { recursive: true, force: true });
+rmSync(routingFixture, { recursive: true, force: true });
 rmSync(oidcFixture, { recursive: true, force: true });
 rmSync(viteOidcFixture, { recursive: true, force: true });
 rmSync(expressFixture, { recursive: true, force: true });

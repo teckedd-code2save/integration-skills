@@ -72,6 +72,7 @@ function availableRecipes() {
     "r2",
     "mapbox",
     "google-maps",
+    "routing-eta",
   ].map((id) =>
     readJson(join(recipesRoot, id, "recipe.json")),
   );
@@ -149,6 +150,9 @@ function sourceIntegrationSignals(target) {
       add("google-maps", "Google Maps source integration", path);
     } else if (/Geoapify/.test(content)) {
       add("google-maps", "Existing non-Google location provider; verify migration intent", path);
+    }
+    if (/ROUTING_PROVIDER|routes\.googleapis\.com|directions-matrix\/v1|estimateRouteMatrix/.test(content)) {
+      add("routing-eta", "Routing or ETA source integration", path);
     }
   }
   return signals;
@@ -340,6 +344,7 @@ function compositionSources(ids, context) {
       : selected.has("google-maps")
         ? "google-maps"
         : null,
+    routing: selected.has("routing-eta") ? "provider-neutral" : null,
   };
 
   const serverExports = [];
@@ -381,6 +386,15 @@ function compositionSources(ids, context) {
         : 'export type { OidcIdentity, OidcTransaction } from "./oidc/flow";',
     );
   }
+  if (selected.has("routing-eta")) {
+    serverExports.push(
+      'export { estimateRoute, estimateRouteMatrix, RoutingInputError } from "./routing-eta/client";',
+      'export type { RouteCoordinate, RouteEstimateRequest, RouteEstimate, RouteMatrixRequest, RouteMatrix, RouteMatrixElement, RoutingProvider, TravelMode } from "./routing-eta/client";',
+      context.kind === "express"
+        ? 'export { createRouteEstimateHandlers, createRouteMatrixHandlers } from "./routing-eta/express-routes";'
+        : 'export { createRouteEstimateRoute, createRouteMatrixRoute } from "./routing-eta/next-routes";',
+    );
+  }
 
   const authClient = selected.has("clerk")
     ? 'export { ClerkAuthControls as AuthControls } from "../../components/clerk-auth-controls";'
@@ -398,6 +412,9 @@ function compositionSources(ids, context) {
       : "export {};";
   const storageClient = selected.has("r2")
     ? 'export { uploadToPresignedUrl as uploadToStorageUrl } from "../r2/upload";'
+    : "export {};";
+  const routingClient = selected.has("routing-eta")
+    ? 'export { requestRouteEstimate, requestRouteMatrix } from "../routing-eta/browser";\nexport type { RouteCoordinate, RouteEstimateRequest, RouteEstimate, RouteMatrixRequest, RouteMatrix, TravelMode } from "../routing-eta/browser";'
     : "export {};";
 
   const provider = selected.has("clerk")
@@ -421,6 +438,7 @@ function compositionSources(ids, context) {
     "integrations/client/auth.ts": `${generatedMarker}\n\n"use client";\n\n${authClient}\n`,
     "integrations/client/location.ts": `${generatedMarker}\n\n"use client";\n\n${locationClient}\n`,
     "integrations/client/storage.ts": `${generatedMarker}\n\n"use client";\n\n${storageClient}\n`,
+    "integrations/client/routing.ts": `${generatedMarker}\n\n"use client";\n\n${routingClient}\n`,
     "integrations/provider.tsx": provider,
   };
 }
@@ -691,6 +709,24 @@ const setupGuides = {
       "Loading, keyboard, empty, error, selection, and location-denial paths work and project checks pass.",
     ],
   },
+  "routing-eta": {
+    connector: "Google Cloud or Mapbox account tooling for the selected routing provider",
+    dashboard: "Google Routes API or Mapbox Navigation dashboard",
+    agentActions: [
+      "Inspect existing routing, distance, ETA, coordinate, caching, and billing paths; reuse a sound application boundary and select one provider deliberately.",
+      "Default to Google Routes where Google Maps is already selected, or Mapbox Navigation where Mapbox is selected; store only the selected server credential.",
+      "Mount authenticated, rate-limited route and matrix endpoints and preserve WGS84 latitude/longitude order from selection through persistence and provider conversion.",
+      "Test known Ghana origin/destination pairs, no-route and invalid-coordinate failures, traffic-aware versus baseline duration, provider quota errors, and project checks.",
+    ],
+    humanActions: [
+      "Complete provider login, MFA, billing attachment, terms acceptance, quota decisions, or one-time credential entry only when required.",
+    ],
+    completionCriteria: [
+      "A live single-route probe and the application's real route flow return plausible distance and duration from the intended provider without exposing its credential.",
+      "A live matrix or multi-destination product flow preserves origin/destination indices, handles unreachable pairs, and stays within provider element limits.",
+      "Displayed ETAs are identified as estimates, traffic behavior and baseline semantics are documented, known Ghana routes are spot-checked, and project checks pass.",
+    ],
+  },
 };
 
 function configurationReport(selected, context, target) {
@@ -698,14 +734,26 @@ function configurationReport(selected, context, target) {
   return selected.map((recipe) => {
     const variant = recipeVariant(recipe, context);
     const variables = variant.env.map((entry) => typeof entry === "string" ? entry : entry.name);
-    const requiredVariables = variant.env
+    let requiredVariables = variant.env
       .filter((entry) => typeof entry === "string" || !entry.optional)
       .map((entry) => typeof entry === "string" ? entry : entry.name);
+    if (recipe.id === "routing-eta" && context.kind !== "vite-react") {
+      const provider = (environment.ROUTING_PROVIDER || "google").toLowerCase();
+      requiredVariables = [provider === "mapbox" ? "MAPBOX_ACCESS_TOKEN" : "GOOGLE_ROUTES_API_KEY"];
+    }
     const configured = variables.filter((name) => configuredValue(environment[name]));
     const missing = requiredVariables.filter((name) => !configured.includes(name));
+    if (
+      recipe.id === "routing-eta" &&
+      context.kind !== "vite-react" &&
+      environment.ROUTING_PROVIDER &&
+      !["google", "mapbox"].includes(environment.ROUTING_PROVIDER.toLowerCase())
+    ) {
+      missing.unshift("ROUTING_PROVIDER (google or mapbox)");
+    }
     const status = recipe.configurationMode === "provider-dashboard"
       ? "provider-verification-required"
-      : ["r2", "oidc"].includes(recipe.id) && context.kind === "vite-react"
+      : ["r2", "oidc", "routing-eta"].includes(recipe.id) && context.kind === "vite-react"
       ? "backend-setup-required"
       : missing.length === 0
         ? "locally-configured"
@@ -767,6 +815,71 @@ async function runR2LiveProbe(target, environment) {
   }
 }
 
+function durationSeconds(value) {
+  const parsed = Number(String(value || "").replace(/s$/, ""));
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+async function runRoutingLiveProbe(environment) {
+  const provider = (environment.ROUTING_PROVIDER || "google").toLowerCase();
+  const origin = { latitude: 5.561, longitude: -0.2077 };
+  const destination = { latitude: 5.6224, longitude: -0.173 };
+  try {
+    let distance;
+    let duration;
+    if (provider === "google") {
+      if (!configuredValue(environment.GOOGLE_ROUTES_API_KEY)) {
+        return { status: "blocked", detail: "GOOGLE_ROUTES_API_KEY is not configured" };
+      }
+      const response = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": environment.GOOGLE_ROUTES_API_KEY,
+          "X-Goog-FieldMask": "routes.distanceMeters,routes.duration",
+        },
+        body: JSON.stringify({
+          origin: { location: { latLng: origin } },
+          destination: { location: { latLng: destination } },
+          travelMode: "DRIVE",
+          routingPreference: "TRAFFIC_AWARE",
+        }),
+      });
+      if (!response.ok) return { status: "failed", detail: `Google Routes probe failed (${response.status})` };
+      const route = (await response.json()).routes?.[0];
+      distance = route?.distanceMeters;
+      duration = durationSeconds(route?.duration);
+    } else if (provider === "mapbox") {
+      if (!configuredValue(environment.MAPBOX_ACCESS_TOKEN)) {
+        return { status: "blocked", detail: "MAPBOX_ACCESS_TOKEN is not configured" };
+      }
+      const coordinates = `${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}`;
+      const url = new URL(`https://api.mapbox.com/directions/v5/mapbox/driving-traffic/${coordinates}`);
+      url.search = new URLSearchParams({
+        access_token: environment.MAPBOX_ACCESS_TOKEN,
+        alternatives: "false",
+        overview: "false",
+      }).toString();
+      const response = await fetch(url);
+      if (!response.ok) return { status: "failed", detail: `Mapbox Directions probe failed (${response.status})` };
+      const route = (await response.json()).routes?.[0];
+      distance = route?.distance;
+      duration = route?.duration;
+    } else {
+      return { status: "blocked", detail: "ROUTING_PROVIDER must be google or mapbox" };
+    }
+    if (!Number.isFinite(distance) || !Number.isFinite(duration) || distance <= 0 || duration <= 0) {
+      return { status: "failed", detail: `${provider} returned no usable Accra route` };
+    }
+    return {
+      status: "passed",
+      detail: `${provider} returned a plausible Accra route (${Math.round(distance)} m, ${Math.round(duration)} s)`,
+    };
+  } catch (error) {
+    return { status: "failed", detail: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 async function doctorReport(selected, context, target, live) {
   const configuration = configurationReport(selected, context, target);
   const environment = targetEnvironment(target);
@@ -776,6 +889,8 @@ async function doctorReport(selected, context, target, live) {
       probes.push({ id: item.id, status: "not-run", detail: "pass --live after configuration" });
     } else if (item.id === "r2") {
       probes.push({ id: item.id, ...(await runR2LiveProbe(target, environment)) });
+    } else if (item.id === "routing-eta") {
+      probes.push({ id: item.id, ...(await runRoutingLiveProbe(environment)) });
     } else {
       probes.push({ id: item.id, status: "manual", detail: "follow the provider verification path in the recipe" });
     }

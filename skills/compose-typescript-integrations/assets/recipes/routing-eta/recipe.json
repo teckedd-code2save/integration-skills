@@ -1,0 +1,49 @@
+{
+  "id": "routing-eta",
+  "name": "Provider-neutral routing and ETA",
+  "dependencies": [],
+  "env": [
+    { "name": "ROUTING_PROVIDER", "value": "google", "optional": true },
+    { "name": "GOOGLE_ROUTES_API_KEY", "optional": true },
+    { "name": "MAPBOX_ACCESS_TOKEN", "optional": true }
+  ],
+  "files": [
+    { "source": "client.ts", "destination": "{{src}}/integrations/routing-eta/client.ts" },
+    { "source": "next-routes.ts", "destination": "{{src}}/integrations/routing-eta/next-routes.ts" },
+    { "source": "browser.ts", "destination": "{{src}}/integrations/routing-eta/browser.ts" }
+  ],
+  "manualSteps": [
+    "Choose google or mapbox as ROUTING_PROVIDER and configure only that provider's server-side credential.",
+    "Mount the route factories behind authentication and rate limits; route and matrix calls are billable.",
+    "Verify live Ghana routes against the provider console and real journeys before presenting ETA as a prediction rather than a guarantee."
+  ],
+  "variants": {
+    "express": {
+      "env": [
+        { "name": "ROUTING_PROVIDER", "value": "google", "optional": true },
+        { "name": "GOOGLE_ROUTES_API_KEY", "optional": true },
+        { "name": "MAPBOX_ACCESS_TOKEN", "optional": true }
+      ],
+      "files": [
+        { "source": "client.ts", "destination": "{{src}}/integrations/routing-eta/client.ts" },
+        { "source": "express-routes.ts", "destination": "{{src}}/integrations/routing-eta/express-routes.ts" }
+      ],
+      "manualSteps": [
+        "Choose google or mapbox as ROUTING_PROVIDER and configure only that provider's server-side credential.",
+        "Mount the handlers behind authentication and rate limits; route and matrix calls are billable.",
+        "Verify live Ghana routes against the provider console and real journeys before presenting ETA as a prediction rather than a guarantee."
+      ]
+    },
+    "vite-react": {
+      "env": [],
+      "files": [
+        { "source": "browser.ts", "destination": "{{src}}/integrations/routing-eta/browser.ts" }
+      ],
+      "manualSteps": [
+        "Compose routing-eta into a trusted server workspace and point the browser helpers at its authenticated endpoints.",
+        "Keep Google and Mapbox routing credentials out of VITE_ variables and browser code.",
+        "Verify the frontend renders estimates as predictions, handles no-route/provider failures, and preserves latitude/longitude order."
+      ]
+    }
+  }
+}

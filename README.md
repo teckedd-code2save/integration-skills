@@ -19,6 +19,7 @@ Replace `<capability>` with a concrete request such as:
 - `Paystack card and Ghana mobile-money checkout`
 - `private Cloudflare R2 uploads`
 - `Mapbox or Google Maps Ghana-biased place search and a selectable map`
+- `traffic-aware routing and ETA with Google or Mapbox`
 
 If the agent already supports the Skills CLI, install it directly:
 
@@ -39,7 +40,7 @@ The recommended command composes one or several integrations and records the cho
 ```bash
 node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs list
 node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs inspect --target .
-node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose google-auth linkedin-auth telegram-auth paystack r2 google-maps --target . --install
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose google-auth linkedin-auth telegram-auth paystack r2 google-maps routing-eta --target . --install
 ```
 
 For a frontend/backend monorepo, target each application workspace independently. For example:
@@ -132,6 +133,14 @@ Example request:
 
 > Use `$compose-typescript-integrations` to add Google Maps place search and a selectable map to this React application.
 
+### Provider-neutral routing and ETA
+
+The routing recipe provides a stable server interface over Google Routes or Mapbox Navigation for a single traffic-aware route and origin×destination matrices. It returns WGS84-safe distance, expected duration, provider baseline duration when available, traffic status, and route geometry without exposing provider credentials to the browser.
+
+Example request:
+
+> Use `$compose-typescript-integrations` to set up and verify traffic-aware routing and ETA here.
+
 ## Local development
 
 Preview or install the local skill before publishing changes:
@@ -156,4 +165,4 @@ node skills/compose-typescript-integrations/scripts/test-scaffold.mjs
 - Resend transactional email
 - Sentry monitoring
 - Hubtel messaging and payments
-- Routes and traffic-aware ETA
+- Transactional email and notifications
