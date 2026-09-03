@@ -90,8 +90,16 @@ assert.deepEqual(readFileSync(join(fixture, "integrations.config.json"), "utf8")
   managedBy: "compose-typescript-integrations",
   version: 1,
   executionMode: "auto",
+  secretSink: "runtime-env",
   integrations: ["clerk", "paystack", "r2", "mapbox"],
 }, null, 2)}\n`);
+const defaultSecretPlan = JSON.parse(readFileSync(join(fixture, "integrations.secrets.json"), "utf8"));
+assert.equal(defaultSecretPlan.sink, "runtime-env");
+assert.equal(defaultSecretPlan.modelVisibility, "metadata-only");
+assert.ok(defaultSecretPlan.requirements.some((entry) =>
+  entry.integration === "r2" && entry.name === "R2_SECRET_ACCESS_KEY" && entry.kind === "secret"
+));
+assert.ok(defaultSecretPlan.requirements.every((entry) => !("value" in entry)));
 assert.equal(composed.executionMode.value, "auto");
 assert.equal(composed.executionMode.persisted, true);
 assert.match(
@@ -118,6 +126,43 @@ assert.equal(
 );
 const interactiveReplay = runRaw("setup", "r2", "--target", fixture);
 assert.equal(interactiveReplay.executionMode.value, "interactive");
+
+const groundControlSetup = runRaw(
+  "setup",
+  "r2",
+  "--target",
+  fixture,
+  "--secret-sink",
+  "groundcontrol",
+);
+assert.equal(groundControlSetup.secretSink.id, "groundcontrol");
+assert.equal(groundControlSetup.secretSink.persisted, true);
+assert.equal(groundControlSetup.secretSink.modelVisibility, "metadata-only");
+assert.equal(
+  JSON.parse(readFileSync(join(fixture, "integrations.config.json"), "utf8")).secretSink,
+  "groundcontrol",
+);
+assert.equal(
+  JSON.parse(readFileSync(join(fixture, "integrations.secrets.json"), "utf8")).sink,
+  "groundcontrol",
+);
+const r2SecretHandoff = groundControlSetup.integrations.find((entry) => entry.id === "r2").secretHandoff;
+assert.equal(r2SecretHandoff.sink, "groundcontrol");
+assert.equal(r2SecretHandoff.status, "secure-input-required");
+assert.ok(r2SecretHandoff.requirements.some((entry) =>
+  entry.name === "R2_SESSION_TOKEN" && entry.required === false && entry.kind === "secret"
+));
+assert.ok(!JSON.stringify(groundControlSetup).includes("secretAccessKey"));
+
+const secretSentinel = "must-never-appear-in-a-setup-report";
+process.env.R2_SECRET_ACCESS_KEY = secretSentinel;
+try {
+  const redactedSetup = runRaw("setup", "r2", "--target", fixture);
+  assert.ok(redactedSetup.integrations[0].configured.includes("R2_SECRET_ACCESS_KEY"));
+  assert.ok(!JSON.stringify(redactedSetup).includes(secretSentinel));
+} finally {
+  delete process.env.R2_SECRET_ACCESS_KEY;
+}
 
 const serverFacadePath = join(fixture, "src", "integrations", "server.ts");
 const generatedServerFacade = readFileSync(serverFacadePath, "utf8");
@@ -208,6 +253,34 @@ assert.deepEqual(
   JSON.parse(readFileSync(join(socialFixture, "integrations.config.json"), "utf8")).integrations,
   ["clerk", "google-auth", "linkedin-auth", "telegram-auth"],
 );
+
+const installedFixture = tempFixture("integration-kit-existing-dependencies-");
+mkdirSync(join(installedFixture, "app"), { recursive: true });
+writeFileSync(
+  join(installedFixture, "package.json"),
+  JSON.stringify({
+    private: true,
+    dependencies: {
+      next: "^16.0.0",
+      react: "^19.2.5",
+      "react-dom": "^19.2.5",
+      "@aws-sdk/client-s3": "^3.1125.0",
+      "@aws-sdk/s3-request-presigner": "^3.1125.0",
+    },
+  }, null, 2),
+);
+const packageBeforeInstall = readFileSync(join(installedFixture, "package.json"), "utf8");
+const existingDependencies = run(
+  "compose",
+  "r2",
+  "--target",
+  installedFixture,
+  "--mode",
+  "auto",
+  "--install",
+);
+assert.equal(existingDependencies.installed, "already present");
+assert.equal(readFileSync(join(installedFixture, "package.json"), "utf8"), packageBeforeInstall);
 assert.deepEqual(
   JSON.parse(
     readFileSync(join(socialFixture, "src", "integrations", "capabilities.ts"), "utf8")
