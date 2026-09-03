@@ -45,6 +45,18 @@ node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs inspect
 node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose google-auth linkedin-auth telegram-auth paystack r2 google-maps routing-eta --target . --mode auto --install
 ```
 
+When the runtime is known, select its secret sink as part of composition. This
+persists a value-free credential contract for later agents and deployment tools:
+
+```bash
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose r2 --target apps/web --mode auto --secret-sink groundcontrol --install
+```
+
+The generated `integrations.secrets.json` contains only field names, ownership,
+sensitivity, component scope, and required/optional status. Secret values are
+entered through GroundControl, Infisical, or another write-only runtime store;
+they are never accepted in chat or CLI arguments.
+
 For a frontend/backend monorepo, target each application workspace independently. For example:
 
 ```bash
