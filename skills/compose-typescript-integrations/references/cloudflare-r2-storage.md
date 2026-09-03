@@ -10,7 +10,7 @@ When the user asks to set up, integrate, configure, repair, or finish R2, own th
 2. Determine whether existing S3-compatible code is already a valid R2 implementation. Adapt it in place when practical; do not create a second storage path merely because the starter is available.
 3. Compose only the missing provider boundary and connect it to the real application call path.
 4. Use an authenticated Cloudflare connector when available. Otherwise use Wrangler or lead the exact dashboard flow. Reuse an identified bucket; create one only when needed.
-5. Put credentials directly into the repository's ignored local environment or connected deployment secret store. Never expose their values in chat, logs, source code, generated reports, or commits.
+5. Select the real deployment secret sink and complete its structured secure handoff. Put credentials directly into its write-only input; never expose their values in chat, CLI arguments, logs, source code, generated reports, or commits.
 6. Configure the exact browser origin in CORS when direct uploads are used, then verify authorization and object ownership in addition to storage connectivity.
 7. Run the repository's typecheck, tests, and build, followed by `doctor r2 --live` against the intended Cloudflare account and bucket.
 
@@ -53,6 +53,11 @@ For an R2 binding, add the bucket to the existing `wrangler.jsonc` or `wrangler.
 
 For S3-compatible access, guide the user through **Cloudflare Dashboard → Storage & databases → R2 → Overview → Manage API Tokens**. Create a token scoped to the specific bucket with only the needed object permissions. The secret is shown once; have the user place it directly into a secure field or secret store, never into chat.
 
+When HouseTour or another application is deployed through GroundControl, compose
+with `--secret-sink groundcontrol`. The agent receives only a missing/configured
+receipt while the operator enters the one-time value in GroundControl's
+write-only deployment environment. Do not duplicate the value in `.env.local`.
+
 Use the application's established secret names when they already exist. Otherwise use:
 
 ```dotenv
@@ -60,9 +65,13 @@ CLOUDFLARE_ACCOUNT_ID=
 R2_ACCESS_KEY_ID=
 R2_SECRET_ACCESS_KEY=
 R2_BUCKET=
+R2_SESSION_TOKEN=
 ```
 
-All four values are server-side configuration. Do not prefix credentials with `NEXT_PUBLIC_`, `VITE_`, or another client-exposed prefix.
+The first four values are required server-side configuration.
+`R2_SESSION_TOKEN` is optional and is used only with Cloudflare temporary
+credentials. Do not prefix credentials with `NEXT_PUBLIC_`, `VITE_`, or another
+client-exposed prefix.
 
 ## Copy-ready Node/VPS adapter
 
