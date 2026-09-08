@@ -1,5 +1,7 @@
 # Cloudflare R2 storage recipe
 
+For account login, expired-code recovery, same-runtime verification and direct credential delivery, read [authentication orchestration](authentication-orchestration.md).
+
 Use this recipe when adding Cloudflare R2 object storage to a TypeScript application. Start with one private bucket and the smallest access surface that supports the product.
 
 ## Completion contract for agents
@@ -12,7 +14,7 @@ When the user asks to set up, integrate, configure, repair, or finish R2, own th
 4. Use an authenticated Cloudflare connector when available. Otherwise use Wrangler or lead the exact dashboard flow. Reuse an identified bucket; create one only when needed.
 5. Select the real deployment secret sink and complete its structured secure handoff. Put credentials directly into its write-only input; never expose their values in chat, CLI arguments, logs, source code, generated reports, or commits.
 6. Configure the exact browser origin in CORS when direct uploads are used, then verify authorization and object ownership in addition to storage connectivity.
-7. Run the repository's typecheck, tests, and build, followed by `doctor r2 --live` against the intended Cloudflare account and bucket.
+7. Run the repository's typecheck, tests, and build, followed by `doctor r2 --live` for direct S3 access, or the binding-aware application probe in the authentication guide for a Worker route.
 
 R2 is complete only when the application's real upload/download path is connected and the live temporary put/get/delete probe passes. Merely finding `S3Client`, generating files, adding environment-variable names, or reaching a login screen is not completion. If login or MFA is required, ask only for that action and continue afterward.
 
@@ -33,7 +35,7 @@ Determine the runtime, deployment target, existing storage abstraction, expected
 Choose one mode:
 
 - **Cloudflare Worker in the same account:** prefer an R2 binding. It avoids S3 credentials and provides direct Workers API access.
-- **Node.js, Next.js server, VPS, or another cloud:** use R2's S3-compatible API through `@aws-sdk/client-s3`.
+- **Node.js, Next.js server, VPS, or another cloud:** preserve valid S3 access when already chosen, or use a small authenticated Worker with an R2 binding when avoiding manually managed credentials and VPS media traffic is a requirement. The latter requires an explicit edge integration, not the bundled S3 starter.
 - **Browser or mobile direct uploads/downloads:** issue short-lived presigned URLs from a trusted server. Never put permanent R2 credentials in the client.
 
 Do not add both a Worker binding and an S3 client unless the application genuinely runs in both environments.
@@ -55,8 +57,9 @@ For S3-compatible access, guide the user through **Cloudflare Dashboard → Stor
 
 When HouseTour or another application is deployed through GroundControl, compose
 with `--secret-sink groundcontrol`. The agent receives only a missing/configured
-receipt while the operator enters the one-time value in GroundControl's
-write-only deployment environment. Do not duplicate the value in `.env.local`.
+receipt while an available non-disclosing transport delivers the value into
+GroundControl's write-only deployment environment. Ask the operator to enter it
+there only when no supported agent-capable transport is available. Do not duplicate the value in `.env.local`.
 
 Use the application's established secret names when they already exist. Otherwise use:
 
@@ -68,7 +71,7 @@ R2_BUCKET=
 R2_SESSION_TOKEN=
 ```
 
-The first four values are required server-side configuration.
+For direct S3 access, the first four values are required server-side configuration. A Worker binding does not use these S3 credential variables.
 `R2_SESSION_TOKEN` is optional and is used only with Cloudflare temporary
 credentials. Do not prefix credentials with `NEXT_PUBLIC_`, `VITE_`, or another
 client-exposed prefix.

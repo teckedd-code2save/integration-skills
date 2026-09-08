@@ -13,6 +13,7 @@ import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
+import { authenticationPlan } from "./authentication-plan.mjs";
 
 const skillRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const recipesRoot = join(skillRoot, "assets", "recipes");
@@ -863,10 +864,10 @@ const setupGuides = {
     dashboard: "https://dash.cloudflare.com/?to=/:account/r2",
     agentActions: [
       "Inspect and adapt the application's existing storage abstraction and real upload/download call path.",
-      "Use the Cloudflare connector, Wrangler, or dashboard to reuse or create one private bucket and a bucket-scoped Object Read & Write token.",
+      "Choose or preserve Worker binding versus direct S3 access before requesting keys. Reuse Cloudflare OAuth and the intended private bucket; a binding needs no S3 token.",
       "Store credentials in the established ignored environment or deployment secret store without printing their values.",
       "Configure CORS for the exact frontend origins, methods, and Content-Type header used by browser uploads.",
-      "Run project checks and doctor r2 --live against the intended account and bucket.",
+      "Run project checks and the appropriate live probe: bundled doctor r2 --live for S3, or deployed application upload/readback/rejection/cleanup for a Worker binding.",
     ],
     humanActions: [
       "Complete Cloudflare login, MFA, billing acceptance, or one-time secret entry only when the chosen account flow requires it.",
@@ -983,6 +984,7 @@ function configurationReport(selected, context, target, secretSink = "runtime-en
       },
       existingSignals: context.signals.filter((signal) => signal.integration === recipe.id),
       guide: setupGuides[recipe.id],
+      authenticationPlan: authenticationPlan(recipe.id, secretSink),
     };
   });
 }
@@ -1295,6 +1297,8 @@ if (options.command === "setup") {
       item.secretHandoff.requirements.forEach((entry) =>
         console.log(`  input      ${entry.name} (${entry.kind}, ${entry.status}${entry.required ? ", required" : ", optional"})`));
       for (const signal of item.existingSignals) console.log(`  probe      ${signal.evidence}${signal.path ? ` (${signal.path})` : ""}`);
+      console.log(`  auth       ${item.authenticationPlan.nextAction}`);
+    console.log(`  auth guide ${item.authenticationPlan.reference} (${item.authenticationPlan.status})`);
       console.log(`  use        ${item.guide.connector}`);
       console.log(`  open       ${item.guide.dashboard}`);
       item.guide.agentActions.forEach((step) => console.log(`  agent      ${step}`));
@@ -1389,7 +1393,9 @@ else {
     if (item.missing.length > 0) console.log(`  missing    ${item.missing.join(", ")}`);
     console.log(`  handoff    ${item.secretHandoff.status}: ${item.secretHandoff.nextAction}`);
     for (const signal of item.existingSignals) console.log(`  inspect    ${signal.evidence}${signal.path ? ` (${signal.path})` : ""}`);
-    console.log(`  use        ${item.guide.connector}`);
+    console.log(`  auth       ${item.authenticationPlan.nextAction}`);
+    console.log(`  auth guide ${item.authenticationPlan.reference} (${item.authenticationPlan.status})`);
+      console.log(`  use        ${item.guide.connector}`);
     console.log(`  open       ${item.guide.dashboard}`);
     item.guide.agentActions.forEach((step) => console.log(`  agent      ${step}`));
     item.guide.humanActions.forEach((step) => console.log(`  human      ${step}`));

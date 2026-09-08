@@ -1,5 +1,7 @@
 # Agent-safe secret sinks
 
+For account login, expired-code recovery, same-runtime verification and direct credential delivery, read [authentication orchestration](authentication-orchestration.md).
+
 Integration setup may discover, create, rotate, and verify credentials, but a
 credential value must never pass through the model transcript, a CLI argument,
 source control, or ordinary command output. The scaffolder therefore separates
@@ -53,8 +55,8 @@ Vault or the environment's selected Infisical provider remains authoritative.
 ## Human boundary
 
 Account login, MFA, billing or legal acceptance, and a provider secret that is
-shown only once remain human checkpoints unless an authenticated connector can
-send the value directly to the selected sink without returning it to the
+shown only once remain human checkpoints unless an authenticated connector, official CLI, or trusted non-disclosing
+provider-to-sink transport can send the value directly to the selected sink without returning it to the
 model. Auto mode resumes after that checkpoint; it does not turn the remaining
 agent work into a dashboard checklist.
 

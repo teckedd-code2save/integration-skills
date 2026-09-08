@@ -1,5 +1,7 @@
 # Clerk authentication recipe
 
+For account login, expired-code recovery, same-runtime verification and direct credential delivery, read [authentication orchestration](authentication-orchestration.md).
+
 Use this recipe when the user wants Clerk authentication in a TypeScript application, including Google, LinkedIn, or Telegram login through one Clerk session system. Clerk maintains its own CLI and agent skills, so compose those upstream tools instead of maintaining duplicate framework snippets here.
 
 ## Completion contract for agents

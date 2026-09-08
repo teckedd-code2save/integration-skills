@@ -29,6 +29,12 @@ Apply this contract to every provider recipe, not only maps or routing. Read [re
 
 Persist a secret sink whenever the deployment target is known. Use `--secret-sink groundcontrol` for a GroundControl deployment, `infisical` for a direct Infisical runtime, `runtime-env` for another deployment platform's established secure environment, or `dotenv-local` only for local development. The generated `integrations.secrets.json` contains requirements and classifications but never values. Read [references/secret-sinks.md](references/secret-sinks.md) for the handoff contract.
 
+## Lead authentication and resume it
+
+Before initiating or repairing account access, read [references/authentication-orchestration.md](references/authentication-orchestration.md). It covers the HouseTour-proven Cloudflare OAuth/R2 binding, Clerk-to-GroundControl handoff and GitHub/registry reuse, with recovery for failed connectors, expired device codes and remote callbacks. Keep provider login, agent runtime, deployment credentials and application sessions distinct. After the user finishes login, resume the initiating process and verify the intended resource in that runtime.
+
+`setup`, composition and `doctor` expose an `authenticationPlan` as unverified guidance; environment presence does not verify authentication. Choose the R2 access architecture before requesting keys: a Worker binding can serve a VPS app without S3 credentials. The bundled R2 starter/doctor remains S3-specific; follow the reference for a binding-aware implementation and probe. Never disable a requested capability silently as a substitute for implementing its authorization.
+
 ## Route the request
 
 1. Inspect the project before changing it: framework and version, package manager, routing model, existing authentication or provider code, environment-file conventions, and available tests.

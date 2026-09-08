@@ -147,6 +147,13 @@ assert.equal(
   "groundcontrol",
 );
 const r2SecretHandoff = groundControlSetup.integrations.find((entry) => entry.id === "r2").secretHandoff;
+const r2AuthPlan = groundControlSetup.integrations.find((entry) => entry.id === "r2").authenticationPlan;
+assert.equal(r2AuthPlan.status, "not-verified");
+assert.equal(r2AuthPlan.authority, "cloudflare");
+assert.equal(r2AuthPlan.credentialSink, "groundcontrol");
+assert.equal(r2AuthPlan.starterAccess, "direct-s3-credentials");
+assert.ok(r2AuthPlan.accessChoices.includes("worker-r2-binding"));
+assert.ok(existsSync(resolve(dirname(script), "..", r2AuthPlan.reference)));
 assert.equal(r2SecretHandoff.sink, "groundcontrol");
 assert.equal(r2SecretHandoff.status, "secure-input-required");
 assert.ok(r2SecretHandoff.requirements.some((entry) =>
@@ -160,6 +167,7 @@ try {
   const redactedSetup = runRaw("setup", "r2", "--target", fixture);
   assert.ok(redactedSetup.integrations[0].configured.includes("R2_SECRET_ACCESS_KEY"));
   assert.ok(!JSON.stringify(redactedSetup).includes(secretSentinel));
+  assert.equal(redactedSetup.integrations[0].authenticationPlan.status, "not-verified");
 } finally {
   delete process.env.R2_SECRET_ACCESS_KEY;
 }
@@ -190,6 +198,11 @@ for (const id of [
   const report = runRaw("setup", id, "--target", fixture);
   assert.equal(report.executionMode.value, "auto", `${id} should inherit the global setup mode`);
   assert.ok(report.integrations.some((integration) => integration.id === id));
+  const plan = report.integrations.find((integration) => integration.id === id).authenticationPlan;
+  assert.equal(plan.status, "not-verified");
+  assert.equal(plan.credentialSink, report.secretSink.id);
+  assert.ok(existsSync(resolve(dirname(script), "..", plan.reference)));
+  if (["google-auth", "linkedin-auth", "telegram-auth"].includes(id)) assert.equal(plan.authority, "clerk");
 }
 
 const paystackClientPath = join(fixture, "src", "integrations", "paystack", "client.ts");

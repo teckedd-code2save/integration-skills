@@ -1,5 +1,7 @@
 # Setup execution modes
 
+For account login, expired-code recovery, same-runtime verification and direct credential delivery, read [authentication orchestration](authentication-orchestration.md).
+
 Use one execution mode for the whole target application. The mode governs every integration in the composition, including authentication and SSO, payments, storage, maps, and routing.
 
 Execution mode and secret sink are separate. The mode decides who performs an

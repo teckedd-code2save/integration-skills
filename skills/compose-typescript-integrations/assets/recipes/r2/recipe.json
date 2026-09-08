@@ -16,7 +16,7 @@
     { "source": "upload.ts", "destination": "{{src}}/integrations/r2/upload.ts" }
   ],
   "manualSteps": [
-    "Create a bucket-scoped R2 API token and complete the generated secure handoff through the selected secret sink; never pass a value through chat or CLI arguments.",
+    "For this direct-S3 starter, use a bucket-scoped R2 API token and complete the generated secure handoff through the selected secret sink; never pass a value through chat or CLI arguments.",
     "Create route files using the route factories and implement product-specific authorization.",
     "Configure R2 CORS for the exact browser origins and PUT headers used by the application."
   ],
@@ -42,7 +42,7 @@
         { "source": "express-routes.ts", "destination": "{{src}}/integrations/r2/express-routes.ts" }
       ],
       "manualSteps": [
-        "Create a bucket-scoped R2 API token and complete the generated secure handoff through the selected server secret sink; never pass a value through chat or CLI arguments.",
+        "For this direct-S3 starter, use a bucket-scoped R2 API token and complete the generated secure handoff through the selected server secret sink; never pass a value through chat or CLI arguments.",
         "Mount the handler factories behind product-specific authentication and object-ownership checks.",
         "Configure R2 CORS for the exact browser origins and PUT headers used by the application."
       ]

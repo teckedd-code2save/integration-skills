@@ -95,6 +95,12 @@ node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs doctor 
 
 `setup` reveals only which values are present or missing, then gives the connector/CLI/dashboard walkthrough. The R2 live doctor creates one temporary probe object, reads it back, and deletes it. Existing SDKs are treated as evidence to investigate—not as proof that an integration is configured or works.
 
+## Authentication orchestration
+
+Agents now receive an unverified `authenticationPlan` from `setup`, composition and `doctor`, plus a [practical recovery guide](skills/compose-typescript-integrations/references/authentication-orchestration.md). It teaches reuse of existing access, device-code expiry recovery, verification after login in another tab, direct secret delivery into GroundControl and a credential-free R2 Worker route. The bundled R2 adapter/doctor is still S3-specific; the guide explicitly separates the Worker path and its live test.
+
+These instructions build on HouseTour's documented authentication/upload work. Native phone capture remains unresolved and is not evidence of integration success.
+
 ## Available recipes
 
 ### Clerk authentication
