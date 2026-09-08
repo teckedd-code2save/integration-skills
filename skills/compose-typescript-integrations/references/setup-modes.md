@@ -1,6 +1,12 @@
 # Setup execution modes
 
+For account login, expired-code recovery, same-runtime verification and direct credential delivery, read [authentication orchestration](authentication-orchestration.md).
+
 Use one execution mode for the whole target application. The mode governs every integration in the composition, including authentication and SSO, payments, storage, maps, and routing.
+
+Execution mode and secret sink are separate. The mode decides who performs an
+action; the sink decides where credentials live and how they reach the runtime.
+See [secret-sinks.md](secret-sinks.md).
 
 ## First-run choice
 
@@ -45,6 +51,12 @@ Choose and persist the mode on the first composition:
 
 ```bash
 node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose r2 --target . --mode auto --install
+```
+
+For a GroundControl deployment, persist its write-only environment as the sink:
+
+```bash
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose r2 --target . --mode auto --secret-sink groundcontrol --install
 ```
 
 Future agents reuse it automatically:

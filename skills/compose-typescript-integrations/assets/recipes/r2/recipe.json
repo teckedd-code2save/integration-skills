@@ -6,7 +6,8 @@
     "CLOUDFLARE_ACCOUNT_ID",
     "R2_ACCESS_KEY_ID",
     "R2_SECRET_ACCESS_KEY",
-    "R2_BUCKET"
+    "R2_BUCKET",
+    { "name": "R2_SESSION_TOKEN", "optional": true, "kind": "secret" }
   ],
   "files": [
     { "source": "client.ts", "destination": "{{src}}/integrations/r2/client.ts" },
@@ -15,7 +16,7 @@
     { "source": "upload.ts", "destination": "{{src}}/integrations/r2/upload.ts" }
   ],
   "manualSteps": [
-    "Create a bucket-scoped R2 API token and place its values directly in the secret store.",
+    "For this direct-S3 starter, use a bucket-scoped R2 API token and complete the generated secure handoff through the selected secret sink; never pass a value through chat or CLI arguments.",
     "Create route files using the route factories and implement product-specific authorization.",
     "Configure R2 CORS for the exact browser origins and PUT headers used by the application."
   ],
@@ -34,14 +35,14 @@
     },
     "express": {
       "dependencies": ["@aws-sdk/client-s3", "@aws-sdk/s3-request-presigner"],
-      "env": ["CLOUDFLARE_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET"],
+      "env": ["CLOUDFLARE_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET", { "name": "R2_SESSION_TOKEN", "optional": true, "kind": "secret" }],
       "files": [
         { "source": "client.ts", "destination": "{{src}}/integrations/r2/client.ts" },
         { "source": "objects.ts", "destination": "{{src}}/integrations/r2/objects.ts" },
         { "source": "express-routes.ts", "destination": "{{src}}/integrations/r2/express-routes.ts" }
       ],
       "manualSteps": [
-        "Create a bucket-scoped R2 API token and place its values directly in the server secret store.",
+        "For this direct-S3 starter, use a bucket-scoped R2 API token and complete the generated secure handoff through the selected server secret sink; never pass a value through chat or CLI arguments.",
         "Mount the handler factories behind product-specific authentication and object-ownership checks.",
         "Configure R2 CORS for the exact browser origins and PUT headers used by the application."
       ]

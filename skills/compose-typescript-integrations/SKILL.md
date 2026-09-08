@@ -27,6 +27,14 @@ Before the first setup action, read `integrations.config.json`. If `executionMod
 
 Apply this contract to every provider recipe, not only maps or routing. Read [references/setup-modes.md](references/setup-modes.md) for the full action boundaries and command behavior.
 
+Persist a secret sink whenever the deployment target is known. Use `--secret-sink groundcontrol` for a GroundControl deployment, `infisical` for a direct Infisical runtime, `runtime-env` for another deployment platform's established secure environment, or `dotenv-local` only for local development. The generated `integrations.secrets.json` contains requirements and classifications but never values. Read [references/secret-sinks.md](references/secret-sinks.md) for the handoff contract.
+
+## Lead authentication and resume it
+
+Before initiating or repairing account access, read [references/authentication-orchestration.md](references/authentication-orchestration.md). It covers the HouseTour-proven Cloudflare OAuth/R2 binding, Clerk-to-GroundControl handoff and GitHub/registry reuse, with recovery for failed connectors, expired device codes and remote callbacks. Keep provider login, agent runtime, deployment credentials and application sessions distinct. After the user finishes login, resume the initiating process and verify the intended resource in that runtime.
+
+`setup`, composition and `doctor` expose an `authenticationPlan` as unverified guidance; environment presence does not verify authentication. Choose the R2 access architecture before requesting keys: a Worker binding can serve a VPS app without S3 credentials. The bundled R2 starter/doctor remains S3-specific; follow the reference for a binding-aware implementation and probe. Never disable a requested capability silently as a substitute for implementing its authorization.
+
 ## Route the request
 
 1. Inspect the project before changing it: framework and version, package manager, routing model, existing authentication or provider code, environment-file conventions, and available tests.
@@ -52,7 +60,7 @@ node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs inspect
 Run `compose` against one application target. In a monorepo, run it separately against the web and server workspaces. It records the selected providers in each target's `integrations.config.json`, installs the matching starters, and generates stable application-owned facades:
 
 ```bash
-node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose <clerk|google-auth|linkedin-auth|telegram-auth|oidc|paystack|r2|mapbox|google-maps|routing-eta>... --target . --mode <auto|interactive> --install
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose <clerk|google-auth|linkedin-auth|telegram-auth|oidc|paystack|r2|mapbox|google-maps|routing-eta>... --target . --mode <auto|interactive> --secret-sink <runtime-env|groundcontrol|infisical|dotenv-local> --install
 ```
 
 Subsequent agents can reproduce or repair the declared composition without restating providers:
@@ -78,7 +86,7 @@ node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs setup <
 node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs doctor <provider>... --target .
 ```
 
-`setup` reports missing configuration without printing secret values and gives the exact connector/CLI/dashboard path. Inspect the existing call path, configuration, authorization, ownership, failure handling, and tests before choosing whether to reuse it behind the generated facade or replace it. For R2, run `doctor r2 --live` after configuration; it performs a temporary put/get/delete round trip and removes its probe object. For routing, `doctor routing-eta --live` makes one traffic-aware Accra route request and checks for a usable distance and duration without printing the credential.
+`setup` reports missing configuration without printing secret values, returns a structured `secretHandoff`, and gives the exact connector/CLI/dashboard path. A configured value is represented only by its variable name and status. Inspect the existing call path, configuration, authorization, ownership, failure handling, and tests before choosing whether to reuse it behind the generated facade or replace it. For R2, run `doctor r2 --live` after configuration; it performs a temporary put/get/delete round trip and removes its probe object. For routing, `doctor routing-eta --live` makes one traffic-aware Accra route request and checks for a usable distance and duration without printing the credential.
 
 If no setup mode has been persisted, `compose`, `setup`, and `doctor` stop with an instruction to ask the first-run Auto/Interactive question. Their JSON output includes the active global mode, behavior, persistence state, and actions that always require access or approval.
 
@@ -91,6 +99,7 @@ The starters provide working provider boundaries, not product authorization or b
 - Prefer official provider skills, CLIs, SDKs, and docs. Do not fork or restate a maintained upstream integration unless adaptation is actually needed.
 - Use an authenticated connector or provider CLI when available to create or configure resources. Otherwise guide the user to the exact screen and resume after the necessary human step.
 - Never ask the user to paste secret keys into chat. Put secrets into the project's established local secret file or connected deployment secret store, and ensure they are ignored by version control.
+- Never accept a secret through a CLI argument or generated manifest. Use the selected sink's write-only input and expose only a success receipt to the agent.
 - Treat account login, MFA, billing acceptance, production promotion, and other human-only decisions as user steps. Continue useful local work while waiting when possible.
 - Do not replace an existing auth or integration system without making the migration explicit.
 - Inspect generated changes before accepting them. Refine imports, routes, middleware, styling, error handling, and configuration to match the existing project.

@@ -15,6 +15,9 @@ export function r2Client() {
     credentials: {
       accessKeyId: required("R2_ACCESS_KEY_ID"),
       secretAccessKey: required("R2_SECRET_ACCESS_KEY"),
+      ...(process.env.R2_SESSION_TOKEN
+        ? { sessionToken: process.env.R2_SESSION_TOKEN }
+        : {}),
     },
   });
   return client;
