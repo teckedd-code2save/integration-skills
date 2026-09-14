@@ -17,7 +17,7 @@ Replace `<capability>` with a concrete request such as:
 - `Clerk Google, LinkedIn, Telegram, and phone authentication`
 - `vendor-neutral OIDC SSO`
 - `Paystack card and Ghana mobile-money checkout`
-- `private Cloudflare R2 uploads`
+- `private Cloudflare R2 uploads through a credential-free Worker binding`
 - `Mapbox or Google Maps Ghana-biased place search and a selectable map`
 - `traffic-aware routing and ETA with Google or Mapbox`
 
@@ -31,6 +31,12 @@ Then ask normally:
 
 ```text
 Use $compose-typescript-integrations to set up and verify R2 here.
+```
+
+To request the reusable Worker route explicitly:
+
+```text
+Use $compose-typescript-integrations to set up and verify private R2 storage through a Cloudflare Worker binding. Keep R2 credentials out of the app and VPS.
 ```
 
 That short outcome request is the intended interface for every recipe. On first use, the agent asks one question: **Auto (recommended)** or **Interactive** setup. Auto performs safe agent-capable work and pauses only for required access or approval. Interactive walks through external configuration step by step and asks before making external changes. The choice is stored for every integration in that application, so later agents do not ask again.
@@ -97,7 +103,9 @@ node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs doctor 
 
 ## Authentication orchestration
 
-Agents now receive an unverified `authenticationPlan` from `setup`, composition and `doctor`, plus a [practical recovery guide](skills/compose-typescript-integrations/references/authentication-orchestration.md). It teaches reuse of existing access, device-code expiry recovery, verification after login in another tab, direct secret delivery into GroundControl and a credential-free R2 Worker route. The bundled R2 adapter/doctor is still S3-specific; the guide explicitly separates the Worker path and its live test.
+Agents receive an unverified `authenticationPlan` from `setup`, composition and `doctor`, plus a [practical recovery guide](skills/compose-typescript-integrations/references/authentication-orchestration.md). It teaches reuse of existing access, device-code expiry recovery, verification after login in another tab, direct secret delivery into GroundControl, and the credential-free R2 Worker route.
+
+`r2` remains the direct-S3 recipe for existing deployments. `r2-worker` now turns the HouseTour-proven design into an executable, portable edge project with an R2 binding, application authorization/completion contracts, browser helpers, tests, automatic nested dependency installation, and a live endpoint/rejection doctor. It deliberately does not invent product ownership rules: the generated callbacks must be connected to the application's real session and object records.
 
 These instructions build on HouseTour's documented authentication/upload work. Native phone capture remains unresolved and is not evidence of integration success.
 
@@ -133,9 +141,16 @@ Example request:
 
 The R2 recipe includes a lazy S3-compatible client, safe object-key generation, object operations, short-lived presigned URLs, browser upload, and authorization-aware Next.js or Express route factories. Vite receives only the browser uploader—never server credentials.
 
+The `r2-worker` recipe instead creates `edge/r2-worker`, binds a private bucket directly to the Worker, and leaves only the Worker origin in the application configuration. It supports Next.js, Express, and a Vite client paired with a trusted backend.
+
 Example request:
 
 > Use `$compose-typescript-integrations` to add private Cloudflare R2 uploads to this Next.js application.
+
+```bash
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose r2-worker --target . --mode auto --install
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs doctor r2-worker --target . --live
+```
 
 ### Mapbox location and search
 

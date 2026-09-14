@@ -33,7 +33,7 @@ Persist a secret sink whenever the deployment target is known. Use `--secret-sin
 
 Before initiating or repairing account access, read [references/authentication-orchestration.md](references/authentication-orchestration.md). It covers the HouseTour-proven Cloudflare OAuth/R2 binding, Clerk-to-GroundControl handoff and GitHub/registry reuse, with recovery for failed connectors, expired device codes and remote callbacks. Keep provider login, agent runtime, deployment credentials and application sessions distinct. After the user finishes login, resume the initiating process and verify the intended resource in that runtime.
 
-`setup`, composition and `doctor` expose an `authenticationPlan` as unverified guidance; environment presence does not verify authentication. Choose the R2 access architecture before requesting keys: a Worker binding can serve a VPS app without S3 credentials. The bundled R2 starter/doctor remains S3-specific; follow the reference for a binding-aware implementation and probe. Never disable a requested capability silently as a substitute for implementing its authorization.
+`setup`, composition and `doctor` expose an `authenticationPlan` as unverified guidance; environment presence does not verify authentication. Choose the R2 access architecture before requesting keys: use `r2-worker` for a credential-free Worker binding or `r2` for direct S3 compatibility. Never disable a requested capability silently as a substitute for implementing its authorization.
 
 ## Route the request
 
@@ -60,7 +60,7 @@ node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs inspect
 Run `compose` against one application target. In a monorepo, run it separately against the web and server workspaces. It records the selected providers in each target's `integrations.config.json`, installs the matching starters, and generates stable application-owned facades:
 
 ```bash
-node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose <clerk|google-auth|linkedin-auth|telegram-auth|oidc|paystack|r2|mapbox|google-maps|routing-eta>... --target . --mode <auto|interactive> --secret-sink <runtime-env|groundcontrol|infisical|dotenv-local> --install
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose <clerk|google-auth|linkedin-auth|telegram-auth|oidc|paystack|r2|r2-worker|mapbox|google-maps|routing-eta>... --target . --mode <auto|interactive> --secret-sink <runtime-env|groundcontrol|infisical|dotenv-local> --install
 ```
 
 Subsequent agents can reproduce or repair the declared composition without restating providers:
@@ -74,7 +74,7 @@ Web compositions generate `integrations/capabilities.ts`, `integrations/provider
 Use the lower-level `add` command when only provider modules are wanted without a manifest or shared facade:
 
 ```bash
-node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs add <clerk|google-auth|linkedin-auth|telegram-auth|oidc|paystack|r2|mapbox|google-maps|routing-eta> --target . --install
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs add <clerk|google-auth|linkedin-auth|telegram-auth|oidc|paystack|r2|r2-worker|mapbox|google-maps|routing-eta> --target . --install
 ```
 
 Use `list` to inspect available starters and `--dry-run` to preview. The script detects Next.js App Router, Vite + React, Express, and workspace roots. It uses `proxy.ts` for Next.js 16+ and `middleware.ts` for older supported versions, selects browser-safe versus server-only modules, adds only missing `.env.example` keys, and preserves existing files. Package-level signals are warnings, not proof: inspect existing provider code before composing. Composition facades carry a generated-file marker and can be safely refreshed; a same-named user-owned file is skipped. Do not use `--force` merely to avoid merging; inspect skipped files and integrate the relevant code deliberately.
@@ -86,7 +86,7 @@ node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs setup <
 node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs doctor <provider>... --target .
 ```
 
-`setup` reports missing configuration without printing secret values, returns a structured `secretHandoff`, and gives the exact connector/CLI/dashboard path. A configured value is represented only by its variable name and status. Inspect the existing call path, configuration, authorization, ownership, failure handling, and tests before choosing whether to reuse it behind the generated facade or replace it. For R2, run `doctor r2 --live` after configuration; it performs a temporary put/get/delete round trip and removes its probe object. For routing, `doctor routing-eta --live` makes one traffic-aware Accra route request and checks for a usable distance and duration without printing the credential.
+`setup` reports missing configuration without printing secret values, returns a structured `secretHandoff`, and gives the exact connector/CLI/dashboard path. A configured value is represented only by its variable name and status. Inspect the existing call path, configuration, authorization, ownership, failure handling, and tests before choosing whether to reuse it behind the generated facade or replace it. For direct S3 R2, run `doctor r2 --live`; it performs a temporary put/get/delete round trip and removes its probe object. For the Worker binding, run `doctor r2-worker --live`, then complete its required authenticated application round trip. For routing, `doctor routing-eta --live` makes one traffic-aware Accra route request and checks for a usable distance and duration without printing the credential.
 
 If no setup mode has been persisted, `compose`, `setup`, and `doctor` stop with an instruction to ask the first-run Auto/Interactive question. Their JSON output includes the active global mode, behavior, persistence state, and actions that always require access or approval.
 

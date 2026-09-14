@@ -46,7 +46,7 @@ Choose storage architecture **before asking for R2 keys**:
 
 For the Worker route: inspect/reuse the bucket, configure its binding in Wrangler, deploy through the authenticated CLI or connected Cloudflare build integration, then store only the Worker origin in the application's runtime configuration. Authenticate uploads through real application ownership checks and short-lived, narrowly scoped capabilities. Preserve private reads. No shared upload password is needed merely because the data passes through an edge service.
 
-The bundled `r2` starter and `doctor r2 --live` currently implement the **S3** path. They do not scaffold or verify the Worker-binding architecture. A missing S3 key in that report is not a reason to add keys to a working binding deployment. Adapt the existing Worker explicitly and run a binding-aware test instead: authorized application upload, exact-byte readback, unauthorized rejection and deletion of only the unique diagnostic object. State whether it was local emulation or a deployed binding.
+Use `r2` and `doctor r2 --live` for the direct-S3 path. Use `r2-worker` for the executable Worker-binding project and `doctor r2-worker --live` for its deployed health and anonymous-rejection checks. A missing S3 key is not a reason to add keys to a binding deployment. The Worker doctor is intentionally partial because it cannot invent a user session or owned object; finish with an authorized application upload, exact-byte readback, unauthorized rejection and deletion of only the unique diagnostic object. State whether storage evidence came from local emulation, a remote binding, or the deployed Worker.
 
 ## Clerk: management access, credentials and real user login
 

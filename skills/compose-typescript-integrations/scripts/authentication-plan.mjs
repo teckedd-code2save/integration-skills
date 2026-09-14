@@ -2,7 +2,7 @@
 // from the presence of environment variables. This module never reads credentials.
 export function authenticationPlan(provider, sink) {
   const authority = ["clerk", "google-auth", "linkedin-auth", "telegram-auth"].includes(provider)
-    ? "clerk" : provider === "r2" ? "cloudflare" : provider;
+    ? "clerk" : ["r2", "r2-worker"].includes(provider) ? "cloudflare" : provider;
   const plan = {
     status: "not-verified",
     authority,
@@ -16,8 +16,10 @@ export function authenticationPlan(provider, sink) {
   };
   if (authority === "cloudflare") {
     plan.accessChoices = ["worker-r2-binding", "direct-s3-credentials"];
-    plan.starterAccess = "direct-s3-credentials";
-    plan.bindingProbe = "Use a deployed binding-aware application upload/readback/rejection/cleanup test; the bundled S3 doctor does not verify this route.";
+    plan.starterAccess = provider === "r2-worker" ? "worker-r2-binding" : "direct-s3-credentials";
+    plan.bindingProbe = provider === "r2-worker"
+      ? "Use doctor r2-worker --live for endpoint and rejection checks, then exercise a real authorized application upload/readback/cleanup."
+      : "Use a deployed binding-aware application upload/readback/rejection/cleanup test; the bundled S3 doctor does not verify this route.";
     plan.nextAction = "Choose or preserve the R2 access architecture first. For a Worker binding, reuse Cloudflare OAuth and do not request S3 keys; for direct S3, use the selected secret sink.";
   } else if (authority === "clerk") {
     plan.nextAction = "Reuse or initiate Clerk management login, link the intended instance, deliver keys directly to the selected sink, then verify a real browser session and protected application action.";

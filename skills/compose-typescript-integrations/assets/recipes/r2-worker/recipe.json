@@ -1,0 +1,74 @@
+{
+  "id": "r2-worker",
+  "name": "Cloudflare R2 Worker gateway",
+  "dependencies": [],
+  "env": [
+    { "name": "NEXT_PUBLIC_R2_WORKER_ORIGIN", "kind": "public-configuration" }
+  ],
+  "installDirectories": ["edge/r2-worker"],
+  "files": [
+    { "source": "browser.ts", "destination": "{{src}}/integrations/r2-worker/browser.ts" },
+    { "source": "contract.ts", "destination": "{{src}}/integrations/r2-worker/contract.ts" },
+    { "source": "next-routes.ts", "destination": "{{src}}/integrations/r2-worker/next-routes.ts" },
+    { "source": "worker/package.json", "destination": "edge/r2-worker/package.json" },
+    { "source": "worker/gitignore", "destination": "edge/r2-worker/.gitignore" },
+    { "source": "worker/tsconfig.json", "destination": "edge/r2-worker/tsconfig.json" },
+    { "source": "worker/wrangler.jsonc", "destination": "edge/r2-worker/wrangler.jsonc" },
+    { "source": "worker/src/index.ts", "destination": "edge/r2-worker/src/index.ts" },
+    { "source": "worker/test/index.test.ts", "destination": "edge/r2-worker/test/index.test.ts" },
+    { "source": "worker/README.md", "destination": "edge/r2-worker/README.md" }
+  ],
+  "manualSteps": [
+    "Implement the generated authorization and completion callbacks against the application's real session, object ownership, and one-time completion state.",
+    "Replace the placeholder Worker and bucket names and localhost origins in edge/r2-worker/wrangler.jsonc, then reuse Wrangler OAuth to create or bind the private bucket.",
+    "Deploy edge/r2-worker and store only its HTTPS origin as NEXT_PUBLIC_R2_WORKER_ORIGIN; no R2 S3 access key or secret is used.",
+    "Exercise an authorized upload and exact-byte readback, reject an unauthorized object, and clean up only the unique probe object."
+  ],
+  "variants": {
+    "vite-react": {
+      "dependencies": [],
+      "env": [{ "name": "VITE_R2_WORKER_ORIGIN", "kind": "public-configuration" }],
+      "installDirectories": ["edge/r2-worker"],
+      "files": [
+        { "source": "browser.ts", "destination": "{{src}}/integrations/r2-worker/browser.ts" },
+        { "source": "contract.ts", "destination": "{{src}}/integrations/r2-worker/contract.ts" },
+        { "source": "worker/package.json", "destination": "edge/r2-worker/package.json" },
+        { "source": "worker/gitignore", "destination": "edge/r2-worker/.gitignore" },
+        { "source": "worker/tsconfig.json", "destination": "edge/r2-worker/tsconfig.json" },
+        { "source": "worker/wrangler.jsonc", "destination": "edge/r2-worker/wrangler.jsonc" },
+        { "source": "worker/src/index.ts", "destination": "edge/r2-worker/src/index.ts" },
+        { "source": "worker/test/index.test.ts", "destination": "edge/r2-worker/test/index.test.ts" },
+        { "source": "worker/README.md", "destination": "edge/r2-worker/README.md" }
+      ],
+      "manualSteps": [
+        "Point the Worker at a trusted backend that implements the authorization and completion contract; a browser-only application cannot enforce object ownership.",
+        "Replace the placeholder Worker and bucket names and localhost origins in edge/r2-worker/wrangler.jsonc, then reuse Wrangler OAuth to create or bind the private bucket.",
+        "Deploy edge/r2-worker and set VITE_R2_WORKER_ORIGIN to its HTTPS origin; no R2 credential belongs in the browser build.",
+        "Exercise an authorized upload and exact-byte readback, reject an unauthorized object, and clean up only the unique probe object."
+      ]
+    },
+    "express": {
+      "dependencies": [],
+      "env": [{ "name": "R2_WORKER_ORIGIN", "kind": "configuration" }],
+      "installDirectories": ["edge/r2-worker"],
+      "files": [
+        { "source": "browser.ts", "destination": "{{src}}/integrations/r2-worker/browser.ts" },
+        { "source": "contract.ts", "destination": "{{src}}/integrations/r2-worker/contract.ts" },
+        { "source": "express-routes.ts", "destination": "{{src}}/integrations/r2-worker/express-routes.ts" },
+        { "source": "worker/package.json", "destination": "edge/r2-worker/package.json" },
+        { "source": "worker/gitignore", "destination": "edge/r2-worker/.gitignore" },
+        { "source": "worker/tsconfig.json", "destination": "edge/r2-worker/tsconfig.json" },
+        { "source": "worker/wrangler.jsonc", "destination": "edge/r2-worker/wrangler.jsonc" },
+        { "source": "worker/src/index.ts", "destination": "edge/r2-worker/src/index.ts" },
+        { "source": "worker/test/index.test.ts", "destination": "edge/r2-worker/test/index.test.ts" },
+        { "source": "worker/README.md", "destination": "edge/r2-worker/README.md" }
+      ],
+      "manualSteps": [
+        "Mount the generated Express authorization and completion handlers behind JSON parsing and implement their callbacks using the real session, object ownership, and one-time completion state.",
+        "Replace the placeholder Worker and bucket names and localhost origins in edge/r2-worker/wrangler.jsonc, then reuse Wrangler OAuth to create or bind the private bucket.",
+        "Deploy edge/r2-worker and store only its HTTPS origin as R2_WORKER_ORIGIN; no R2 S3 access key or secret is used.",
+        "Exercise an authorized upload and exact-byte readback, reject an unauthorized object, and clean up only the unique probe object."
+      ]
+    }
+  }
+}

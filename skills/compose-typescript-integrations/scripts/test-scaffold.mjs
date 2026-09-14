@@ -172,6 +172,87 @@ try {
   delete process.env.R2_SECRET_ACCESS_KEY;
 }
 
+const workerFixture = tempFixture("integration-kit-r2-worker-");
+mkdirSync(join(workerFixture, "src", "app"), { recursive: true });
+writeFileSync(
+  join(workerFixture, "package.json"),
+  JSON.stringify({ private: true, type: "module", dependencies: { next: "^16.0.0" } }, null, 2),
+);
+const workerComposition = run(
+  "compose",
+  "r2-worker",
+  "--target",
+  workerFixture,
+  "--secret-sink",
+  "groundcontrol",
+);
+assert.equal(workerComposition.executionMode.value, "auto");
+assert.equal(workerComposition.results[0].installDirectories[0], "edge/r2-worker");
+assert.ok(existsSync(join(workerFixture, "edge", "r2-worker", "src", "index.ts")));
+assert.ok(existsSync(join(workerFixture, "edge", "r2-worker", "wrangler.jsonc")));
+assert.ok(existsSync(join(workerFixture, "src", "integrations", "r2-worker", "next-routes.ts")));
+assert.match(
+  readFileSync(join(workerFixture, "src", "integrations", "server.ts"), "utf8"),
+  /createStorageAuthorizeRoute/,
+);
+assert.match(
+  readFileSync(join(workerFixture, "src", "integrations", "client", "storage.ts"), "utf8"),
+  /uploadToR2Worker as uploadToStorage/,
+);
+const workerEnv = readFileSync(join(workerFixture, ".env.example"), "utf8");
+assert.match(workerEnv, /^NEXT_PUBLIC_R2_WORKER_ORIGIN=$/m);
+assert.doesNotMatch(workerEnv, /R2_ACCESS_KEY_ID|R2_SECRET_ACCESS_KEY/);
+const workerSecrets = JSON.parse(readFileSync(join(workerFixture, "integrations.secrets.json"), "utf8"));
+assert.deepEqual(
+  workerSecrets.requirements.map((entry) => [entry.name, entry.kind]),
+  [["NEXT_PUBLIC_R2_WORKER_ORIGIN", "public-configuration"]],
+);
+const workerSetup = runRaw("setup", "r2-worker", "--target", workerFixture);
+assert.equal(workerSetup.integrations[0].status, "setup-required");
+assert.equal(workerSetup.integrations[0].secretHandoff.status, "ready");
+assert.equal(workerSetup.integrations[0].authenticationPlan.starterAccess, "worker-r2-binding");
+const workerDoctor = runRaw("doctor", "r2-worker", "--target", workerFixture);
+assert.equal(workerDoctor.probes[0].status, "not-run");
+assert.throws(
+  () => run("compose", "r2", "r2-worker", "--target", workerFixture),
+  /choose one R2 access architecture/,
+);
+writeFileSync(
+  join(workerFixture, "tsconfig.json"),
+  JSON.stringify(
+    {
+      compilerOptions: {
+        target: "ES2022",
+        lib: ["DOM", "DOM.Iterable", "ES2022"],
+        module: "ESNext",
+        moduleResolution: "bundler",
+        strict: true,
+        noEmit: true,
+        skipLibCheck: true,
+        types: ["node"],
+      },
+      include: ["src"],
+    },
+    null,
+    2,
+  ),
+);
+execFileSync(
+  resolve("node_modules", ".bin", "tsc"),
+  ["--project", join(workerFixture, "tsconfig.json")],
+  { stdio: "inherit" },
+);
+execFileSync(
+  resolve("node_modules", ".bin", "tsc"),
+  ["--project", join(workerFixture, "edge", "r2-worker", "tsconfig.json")],
+  { stdio: "inherit" },
+);
+execFileSync(
+  process.execPath,
+  ["--import", "tsx", "--test", join(workerFixture, "edge", "r2-worker", "test", "index.test.ts")],
+  { cwd: resolve("."), stdio: "inherit" },
+);
+
 const serverFacadePath = join(fixture, "src", "integrations", "server.ts");
 const generatedServerFacade = readFileSync(serverFacadePath, "utf8");
 writeFileSync(serverFacadePath, "user-owned\n");
@@ -191,6 +272,7 @@ for (const id of [
   "oidc",
   "paystack",
   "r2",
+  "r2-worker",
   "mapbox",
   "google-maps",
   "routing-eta",
@@ -859,6 +941,7 @@ execFileSync(resolve("node_modules", ".bin", "tsc"), ["--project", join(fixture,
 
 rmSync(fixture, { recursive: true, force: true });
 rmSync(fixture15, { recursive: true, force: true });
+rmSync(workerFixture, { recursive: true, force: true });
 rmSync(socialFixture, { recursive: true, force: true });
 rmSync(workspaceFixture, { recursive: true, force: true });
 rmSync(viteFixture, { recursive: true, force: true });

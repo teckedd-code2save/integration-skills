@@ -35,7 +35,7 @@ Determine the runtime, deployment target, existing storage abstraction, expected
 Choose one mode:
 
 - **Cloudflare Worker in the same account:** prefer an R2 binding. It avoids S3 credentials and provides direct Workers API access.
-- **Node.js, Next.js server, VPS, or another cloud:** preserve valid S3 access when already chosen, or use a small authenticated Worker with an R2 binding when avoiding manually managed credentials and VPS media traffic is a requirement. The latter requires an explicit edge integration, not the bundled S3 starter.
+- **Node.js, Next.js server, VPS, or another cloud:** preserve valid S3 access when already chosen, or use the `r2-worker` recipe when avoiding manually managed credentials and VPS media traffic is a requirement.
 - **Browser or mobile direct uploads/downloads:** issue short-lived presigned URLs from a trusted server. Never put permanent R2 credentials in the client.
 
 Do not add both a Worker binding and an S3 client unless the application genuinely runs in both environments.
@@ -95,7 +95,15 @@ node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs doctor 
 
 Do this even when an AWS SDK dependency already exists. Trace its endpoint, region, bucket, object ownership, CORS, and tests: an AWS S3 client without the Cloudflare account endpoint is not yet an R2 integration. The live doctor performs a temporary put/get/delete round trip and cleans up its own object.
 
-It creates the S3-compatible client, object helpers, a browser upload helper, and authorization-aware route factories. Compose a route using the application's real session and ownership rules:
+For the credential-free Worker gateway instead, compose:
+
+```bash
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose r2-worker --target . --mode auto --install
+```
+
+This creates a self-contained `edge/r2-worker` project plus framework-specific authorization/completion routes and browser helpers. It installs the nested Worker dependencies with `--install`. The application—not the Worker—must authenticate the caller, enforce ownership, select the trusted object key, and issue a short-lived single-use completion token. The Worker streams bytes through its `STORAGE` binding, confirms the write with the application, and deletes the new object if confirmation fails.
+
+The direct `r2` recipe creates the S3-compatible client, object helpers, a browser upload helper, and authorization-aware route factories. Compose a route using the application's real session and ownership rules:
 
 ```ts
 import { createR2UploadRoute } from "@/integrations/r2/next-routes";
@@ -206,7 +214,7 @@ For large files, use R2 multipart upload rather than buffering the entire object
 
 ## Worker binding variant
 
-When the application runs as a Cloudflare Worker, configure a binding instead of credentials:
+The `r2-worker` starter configures this binding shape. When adapting an existing Cloudflare Worker instead, configure a binding rather than credentials:
 
 ```jsonc
 {
@@ -220,6 +228,8 @@ When the application runs as a Cloudflare Worker, configure a binding instead of
 ```
 
 Access it through the generated environment type as an `R2Bucket`. Preserve other Wrangler configuration. Remember that ordinary local `wrangler dev` storage is local unless remote behavior is explicitly requested.
+
+The generated Worker exposes no raw object-key route. It accepts application object IDs, forwards the user's bearer token to the generated application authorization route, and uses only the trusted storage key returned by that route. Keep this separation when adapting the starter.
 
 ## Verify
 

@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "replace-with-app-r2-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-14",
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "APP_API_ORIGIN": "http://localhost:3000",
+    "APP_BROWSER_ORIGIN": "http://localhost:3000",
+    "MAX_UPLOAD_BYTES": "33554432",
+    "ALLOWED_CONTENT_TYPES": "image/jpeg,image/png,image/webp,application/pdf"
+  },
+  "r2_buckets": [
+    {
+      "binding": "STORAGE",
+      "bucket_name": "replace-with-private-r2-bucket"
+    }
+  ]
+}

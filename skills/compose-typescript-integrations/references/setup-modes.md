@@ -50,24 +50,24 @@ When a connector reports that access is missing, request that specific connectio
 Choose and persist the mode on the first composition:
 
 ```bash
-node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose r2 --target . --mode auto --install
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose r2-worker --target . --mode auto --install
 ```
 
 For a GroundControl deployment, persist its write-only environment as the sink:
 
 ```bash
-node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose r2 --target . --mode auto --secret-sink groundcontrol --install
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs compose r2-worker --target . --mode auto --secret-sink groundcontrol --install
 ```
 
 Future agents reuse it automatically:
 
 ```bash
-node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs setup r2 --target .
-node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs doctor r2 --target . --live
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs setup r2-worker --target .
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs doctor r2-worker --target . --live
 ```
 
 Change it deliberately when requested:
 
 ```bash
-node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs setup r2 --target . --mode interactive
+node .agents/skills/compose-typescript-integrations/scripts/scaffold.mjs setup r2-worker --target . --mode interactive
 ```

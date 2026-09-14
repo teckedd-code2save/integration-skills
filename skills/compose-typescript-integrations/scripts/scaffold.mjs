@@ -83,6 +83,7 @@ function availableRecipes() {
     "oidc",
     "paystack",
     "r2",
+    "r2-worker",
     "mapbox",
     "google-maps",
     "routing-eta",
@@ -124,6 +125,8 @@ function sourceFiles(target, limit = 400) {
   visit(join(target, "src"));
   visit(join(target, "app"));
   visit(join(target, "integrations"));
+  visit(join(target, "edge"));
+  visit(join(target, "workers"));
   for (const name of [".env.example", ".env.local.example"]) {
     if (existsSync(join(target, name))) files.push(join(target, name));
   }
@@ -155,6 +158,9 @@ function sourceIntegrationSignals(target) {
       add("r2", "Cloudflare R2 endpoint or configuration", path);
     } else if (/S3Client|AWS_S3_BUCKET|@aws-sdk\/client-s3/.test(content)) {
       add("r2", "Generic S3-compatible implementation; verify the R2 endpoint", path);
+    }
+    if (/r2_buckets|R2Bucket|(?:NEXT_PUBLIC_|VITE_)?R2_WORKER_ORIGIN/.test(content)) {
+      add("r2-worker", "Cloudflare Worker with an R2 binding", path);
     }
     if (/mapbox-gl|@mapbox\/|MAPBOX_ACCESS_TOKEN/.test(content)) {
       add("mapbox", "Mapbox source integration", path);
@@ -511,7 +517,7 @@ function compositionSources(ids, context) {
     auth: selected.has("clerk") ? "clerk" : selected.has("oidc") ? "oidc" : null,
     authMethods,
     payments: selected.has("paystack") ? "paystack" : null,
-    storage: selected.has("r2") ? "r2" : null,
+    storage: selected.has("r2-worker") ? "r2-worker" : selected.has("r2") ? "r2" : null,
     location: selected.has("mapbox")
       ? "mapbox"
       : selected.has("google-maps")
@@ -538,6 +544,14 @@ function compositionSources(ids, context) {
         ? 'export { createR2UploadHandler as createStorageUploadHandler, createR2DownloadHandler as createStorageDownloadHandler } from "./r2/express-routes";'
         : 'export { createR2UploadRoute as createStorageUploadRoute, createR2DownloadRoute as createStorageDownloadRoute } from "./r2/next-routes";',
       'export { putR2Object as putStorageObject, headR2Object as headStorageObject, deleteR2Object as deleteStorageObject, createR2UploadUrl as createStorageUploadUrl, createR2DownloadUrl as createStorageDownloadUrl, createObjectKey as createStorageObjectKey } from "./r2/objects";',
+    );
+  }
+  if (selected.has("r2-worker")) {
+    serverExports.push(
+      context.kind === "express"
+        ? 'export { createR2WorkerAuthorizeHandler as createStorageAuthorizeHandler, createR2WorkerCompleteHandler as createStorageCompleteHandler } from "./r2-worker/express-routes";'
+        : 'export { createR2WorkerAuthorizeRoute as createStorageAuthorizeRoute, createR2WorkerCompleteRoute as createStorageCompleteRoute } from "./r2-worker/next-routes";',
+      'export type { R2WorkerAuthorizationInput as StorageAuthorizationInput, R2WorkerAuthorization as StorageAuthorization, R2WorkerCompletionInput as StorageCompletionInput } from "./r2-worker/contract";',
     );
   }
 
@@ -583,7 +597,9 @@ function compositionSources(ids, context) {
         ? 'import dynamic from "next/dynamic";\n\nexport type { GoogleMapsLocation as LocationSelection } from "../../components/google-maps-location-picker";\n\nexport const LocationPicker = dynamic(\n  () => import("../../components/google-maps-location-picker").then((module) => module.GoogleMapsLocationPicker),\n  { ssr: false },\n);'
         : 'export { GoogleMapsLocationPicker as LocationPicker } from "../../components/google-maps-location-picker";\nexport type { GoogleMapsLocation as LocationSelection } from "../../components/google-maps-location-picker";'
       : "export {};";
-  const storageClient = selected.has("r2")
+  const storageClient = selected.has("r2-worker")
+    ? 'export { uploadToR2Worker as uploadToStorage, downloadFromR2Worker as downloadFromStorage } from "../r2-worker/browser";'
+    : selected.has("r2")
     ? 'export { uploadToPresignedUrl as uploadToStorageUrl } from "../r2/upload";'
     : "export {};";
   const routingClient = selected.has("routing-eta")
@@ -688,6 +704,22 @@ function installDependencies(target, dependencies) {
   if (result.error) fail(`could not run ${command}: ${result.error.message}`);
   if (result.status !== 0) fail(`${command} exited with status ${result.status}`);
   return `${command} ${action} ${pending.join(" ")}`;
+}
+
+function installRecipeProjects(target, directories) {
+  const installed = [];
+  for (const relativeDirectory of [...new Set(directories)]) {
+    const directory = join(target, relativeDirectory);
+    const command = existsSync(join(directory, "pnpm-lock.yaml")) ? "pnpm"
+      : existsSync(join(directory, "yarn.lock")) ? "yarn"
+        : existsSync(join(directory, "bun.lock")) || existsSync(join(directory, "bun.lockb")) ? "bun"
+          : "npm";
+    const result = spawnSync(command, ["install"], { cwd: directory, stdio: "inherit" });
+    if (result.error) fail(`could not install ${relativeDirectory}: ${result.error.message}`);
+    if (result.status !== 0) fail(`${command} install exited with status ${result.status} in ${relativeDirectory}`);
+    installed.push({ directory: relativeDirectory, command: `${command} install` });
+  }
+  return installed;
 }
 
 function clerkReactCompatibility(target, dependencies) {
@@ -878,6 +910,24 @@ const setupGuides = {
       "A live temporary object put/get/delete round trip passes and cleans up its probe object.",
     ],
   },
+  "r2-worker": {
+    connector: "Cloudflare connector, Wrangler OAuth, or authenticated Cloudflare dashboard",
+    dashboard: "https://dash.cloudflare.com/?to=/:account/workers-and-pages",
+    agentActions: [
+      "Inspect the application's existing storage, session, ownership, object metadata, and deployment paths; preserve a sound implementation instead of adding a parallel gateway.",
+      "Compose the edge/r2-worker starter, connect its authorization and completion callbacks to trusted application state, and keep raw R2 object keys unavailable to callers.",
+      "Reuse Cloudflare OAuth, create or reuse one private bucket, bind it as STORAGE, deploy the Worker, and store only the Worker origin in the application runtime.",
+      "Run the generated Worker tests, application checks, doctor r2-worker --live, and a real authorized upload/readback/unauthorized-rejection/cleanup flow.",
+    ],
+    humanActions: [
+      "Complete Cloudflare login, MFA, account selection, billing acceptance, production deployment approval, or another provider-owned decision only when required.",
+    ],
+    completionCriteria: [
+      "The application streams bytes through the deployed Worker and intended private R2 binding without R2 S3 credentials in the app, VPS, browser, repository, or CI.",
+      "Application authorization selects the trusted storage key, upload expectations match, completion is one-time, and failed completion removes only the new object.",
+      "An authorized exact-byte round trip passes, unauthorized access is rejected, the unique test object is cleaned up, and project checks pass.",
+    ],
+  },
   mapbox: {
     connector: "Mapbox DevKit connector or authenticated Mapbox dashboard",
     dashboard: "https://account.mapbox.com/access-tokens/",
@@ -958,7 +1008,7 @@ function configurationReport(selected, context, target, secretSink = "runtime-en
     }
     const status = recipe.configurationMode === "provider-dashboard"
       ? "provider-verification-required"
-      : ["r2", "oidc", "routing-eta"].includes(recipe.id) && context.kind === "vite-react"
+      : ["r2", "r2-worker", "oidc", "routing-eta"].includes(recipe.id) && context.kind === "vite-react"
       ? "backend-setup-required"
       : missing.length === 0
         ? "locally-configured"
@@ -1032,6 +1082,39 @@ async function runR2LiveProbe(target, environment) {
     } finally {
       await client.send(new DeleteObjectCommand({ Bucket: environment.R2_BUCKET, Key: key }));
     }
+  } catch (error) {
+    return { status: "failed", detail: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+async function runR2WorkerLiveProbe(environment) {
+  const origin = environment.R2_WORKER_ORIGIN ||
+    environment.NEXT_PUBLIC_R2_WORKER_ORIGIN ||
+    environment.VITE_R2_WORKER_ORIGIN;
+  if (!configuredValue(origin)) {
+    return { status: "blocked", detail: "the framework's R2 Worker origin is not configured" };
+  }
+  try {
+    const base = new URL(origin);
+    if (base.protocol !== "https:" && base.hostname !== "localhost") {
+      return { status: "failed", detail: "R2 Worker origin must use HTTPS outside local development" };
+    }
+    const health = await fetch(new URL("/health", base), { headers: { Accept: "application/json" } });
+    const body = health.ok ? await health.json() : null;
+    if (!health.ok || body?.status !== "ok" || body?.storage !== "r2-binding") {
+      return { status: "failed", detail: `R2 Worker health check failed (${health.status})` };
+    }
+    const unauthorized = await fetch(
+      new URL(`/objects/integration-kit-${crypto.randomUUID()}`, base),
+      { headers: { Accept: "application/json" } },
+    );
+    if (![401, 403].includes(unauthorized.status)) {
+      return { status: "failed", detail: `anonymous object access returned ${unauthorized.status}, expected 401 or 403` };
+    }
+    return {
+      status: "partial",
+      detail: "deployed Worker health and anonymous rejection passed; complete an authorized application upload/readback/cleanup to verify the live R2 binding",
+    };
   } catch (error) {
     return { status: "failed", detail: error instanceof Error ? error.message : String(error) };
   }
@@ -1111,6 +1194,8 @@ async function doctorReport(selected, context, target, live, secretSink) {
       probes.push({ id: item.id, status: "not-run", detail: "pass --live after configuration" });
     } else if (item.id === "r2") {
       probes.push({ id: item.id, ...(await runR2LiveProbe(target, environment)) });
+    } else if (item.id === "r2-worker") {
+      probes.push({ id: item.id, ...(await runR2WorkerLiveProbe(environment)) });
     } else if (item.id === "routing-eta") {
       probes.push({ id: item.id, ...(await runRoutingLiveProbe(environment)) });
     } else {
@@ -1152,6 +1237,7 @@ function scaffoldRecipe(recipe, target, context, options) {
     id: recipe.id,
     name: recipe.name,
     dependencies: resolvedRecipe.dependencies,
+    installDirectories: resolvedRecipe.installDirectories ?? [],
     created,
     unchanged,
     skipped,
@@ -1255,6 +1341,9 @@ if (selectedIds.includes("mapbox") && selectedIds.includes("google-maps")) {
 if (selectedIds.includes("clerk") && selectedIds.includes("oidc")) {
   fail("choose one session authority per target: clerk or oidc");
 }
+if (selectedIds.includes("r2") && selectedIds.includes("r2-worker")) {
+  fail("choose one R2 access architecture per target: r2 for direct S3 or r2-worker for a Worker binding");
+}
 const selected = selectedIds.map((id) => {
   const recipe = recipes.find((item) => item.id === id);
   if (!recipe) fail(`unknown recipe ${id}; run 'scaffold.mjs list'`);
@@ -1350,6 +1439,9 @@ const dependencies = [
 const installed = options.install && !options.dryRun
   ? installDependencies(options.target, dependencies)
   : null;
+const installedProjects = options.install && !options.dryRun
+  ? installRecipeProjects(options.target, results.flatMap((result) => result.installDirectories))
+  : [];
 const setup = configurationReport(selected, context, options.target, options.secretSink);
 
 const output = {
@@ -1369,6 +1461,7 @@ const output = {
   dryRun: options.dryRun,
   dependencies,
   installed,
+  installedProjects,
   setup,
   composition,
   results,
@@ -1387,6 +1480,9 @@ else {
     for (const file of composition.files) console.log(`  ${file.status.padEnd(10)} ${file.path}`);
   }
   for (const result of results) printResult(result);
+  for (const project of installedProjects) {
+    console.log(`\nInstalled project\n  ${project.command.padEnd(10)} ${project.directory}`);
+  }
   console.log("\nSetup walkthrough");
   for (const item of setup) {
     console.log(`\n  ${item.name}: ${item.status}`);
